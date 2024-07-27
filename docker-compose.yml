@@ -29,17 +29,17 @@ services:
 
   db:
     image: postgres:16
-    container_name: mysql-wb-app
+    container_name: postgres-wb-app
     restart: unless-stopped
     tty: true
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: dj_music_app
+      POSTGRES_DB: wb_app
       POSTGRES_USER: root
       POSTGRES_PASSWORD: rootpassword
     volumes:
-      - dbdata:/var/lib/mysql
+      - dbdata:/var/lib/postgresql/data
     networks:
       - app-network
 

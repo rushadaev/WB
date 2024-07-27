@@ -33,16 +33,16 @@ test:
 	docker-compose exec wb-app php artisan test
 
 setup:
-	@docker-compose exec wb-app sh -c '[ -f .env ] && echo ".env file already exists. Skipping .env file creation." || (cp .env.example .env && echo ".env file created from .env.example.")'
-	@docker-compose exec wb-app composer install
-	@docker-compose exec wb-app php artisan key:generate
-	@docker-compose exec wb-app php artisan migrate
+	@docker-compose exec wb-app sh -c '[ -f /var/www/wb-back/.env ] && echo ".env file already exists. Skipping .env file creation." || (cp /var/www/wb-back/.env.example /var/www/wb-back/.env && echo ".env file created from .env.example.")'
+	@docker-compose exec wb-app composer install -d /var/www/wb-back
+	@docker-compose exec wb-app php /var/www/wb-back/artisan key:generate
+	@docker-compose exec wb-app php /var/www/wb-back/artisan migrate
 	@echo "Setup completed."
 
 update-prod: stop build up setup
 
 install-laravel:
-	docker-compose exec wb-app laravel new .
+	@rm -rf wb-back/* && docker-compose exec -u www-data wb-app laravel new /var/www/wb-back
 
 %:
 	@:
