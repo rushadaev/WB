@@ -37,6 +37,19 @@ RUN touch .env && \
 # Set permissions for the working directory
 RUN chown -R www-data:www-data /var/www/wb-back
 
+# Install Supercronic
+ARG SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.29
+ARG SUPERCRONIC=supercronic-linux-amd64
+ARG SUPERCRONIC_SHA1SUM=cd48d45c4b10f3f0bfdd3a57d054cd05ac96812b
+RUN curl -fsSLO "$SUPERCRONIC_URL/$SUPERCRONIC" \
+    && echo "$SUPERCRONIC_SHA1SUM $SUPERCRONIC" | sha1sum -c - \
+    && chmod +x "$SUPERCRONIC" \
+    && mv "$SUPERCRONIC" "/usr/local/bin/supercronic"
+
+# Ensure cron directory exists and set up cron
+COPY cron-schedule.sh /usr/local/bin/cron-schedule.sh
+RUN chmod +x /usr/local/bin/cron-schedule.sh
+
 # Switch to www-data user
 USER www-data
 

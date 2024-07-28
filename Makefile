@@ -42,7 +42,40 @@ setup:
 update-prod: stop build up setup
 
 install-laravel:
-	@rm -rf wb-back/* && docker-compose exec -u www-data wb-app laravel new /var/www/wb-back
+	@docker-compose run --rm -u root wb-app bash -c "\
+		cd /var/www/wb-back && \
+		rm -rf .[!.]* * && \
+		curl -LO https://github.com/laravel/laravel/archive/refs/heads/master.zip && \
+		unzip master.zip && \
+		mv laravel-master/* laravel-master/.[!.]* . && \
+		rm -rf laravel-master master.zip && \
+		composer install"
+
+# Retry a specific failed job by ID
+retry-job:
+	@read -p "Enter job ID to retry: " job_id; \
+	docker-compose exec wb-app php artisan queue:retry $$job_id
+
+# Retry all failed jobs
+retry-all-jobs:
+	docker-compose exec wb-app php artisan queue:retry all
+
+# List all failed jobs
+list-failed-jobs:
+	docker-compose exec wb-app php artisan queue:failed
+
+# Delete a specific failed job by ID
+delete-failed-job:
+	@read -p "Enter job ID to delete: " job_id; \
+	docker-compose exec wb-app php artisan queue:forget $$job_id
+
+# Flush all failed jobs
+flush-failed-jobs:
+	docker-compose exec wb-app php artisan queue:flush
+
+# Restart queue worker
+restart-queue-worker:
+	docker-compose restart queue-worker
 
 %:
 	@:

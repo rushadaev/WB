@@ -43,6 +43,48 @@ services:
     networks:
       - app-network
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scheduler
+    user: "1000:1000" # Ensure container runs as laravel user
+    volumes:
+      - ./wb-back:/var/www/wb-back
+    depends_on:
+      - wb-app
+      - db
+    networks:
+      - app-network
+    env_file:
+      - ./wb-back/.env
+    command: >
+      sh -c "
+      sleep 10 &&
+      /usr/local/bin/cron-schedule.sh"
+    restart: always
+
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: queue-worker
+    user: "1000:1000" # Ensure container runs as laravel user
+    volumes:
+      - ./wb-back:/var/www/wb-back
+    depends_on:
+      - wb-app
+      - db
+    networks:
+      - app-network
+    env_file:
+      - ./wb-back/.env
+    command: >
+      sh -c "
+      sleep 10 &&
+      php /var/www/wb-back/artisan queue:work --tries=3 --max-time=3600"
+    restart: always
+
 networks:
   app-network:
     driver: bridge
