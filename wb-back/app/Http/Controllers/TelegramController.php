@@ -6,10 +6,8 @@ use Illuminate\Http\Request;
 use TelegramBot\Api\Client;
 use TelegramBot\Api\Exception;
 use Illuminate\Support\Facades\Cache;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Log;
-use App\Models\Order;
+use Illuminate\Support\Facades\Artisan;
 
 class TelegramController extends Controller
 {
@@ -148,18 +146,30 @@ class TelegramController extends Controller
     protected function processCallbackData($chatId, $text, Client $bot, $callbackQuery)
     {
         if (strpos($text, 'wb_get') !== false) {
-            $this->processGetFeedback($chatId, $trackId, $bot, $callbackQuery);
+            $this->processGetFeedback($chatId, $text, $bot, $callbackQuery);
         }
     }
 
     protected function processGetFeedback($chatId, $text, Client $bot, $callbackQuery)
     {
-        notify($chatId, 'Processing get feedback'); 
+        $this->notify($chatId, 'Получаем данные с Wildberries 🍓'); 
+        $this->fetchAndSendQuestions('single', $chatId);
     }
     
     protected function notify($telegramId, $message)
     {
         $bot = new Client(config('telegram.bot_token'));
         $bot->sendMessage($telegramId, $message);
+    }
+    
+    public function fetchAndSendQuestions($mode, $telegramId)
+    {
+        
+        Artisan::call('fetch:send-questions', [
+            'mode' => $mode,
+            'telegram_id' => $telegramId
+        ]);
+
+        Log::info(['message' => 'Command executed successfully']);
     }
 }
