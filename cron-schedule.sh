@@ -12,6 +12,10 @@ echo "* * * * * echo 'Cron is working at ' >> /var/www/wb-back/storage/logs/cron
 # Give execute permission to the cron job file
 chmod 0644 /var/www/wb-back/cron.d/laravel-schedule
 
+# Ensure correct permissions for logs directory and files
+chown -R www-data:www-data /var/www/wb-back/storage/logs
+chmod -R 775 /var/www/wb-back/storage/logs
+
 echo "Starting Supercronic..."
 
 # Start supercronic in the foreground (for Docker)

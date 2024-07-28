@@ -37,6 +37,13 @@ RUN touch .env && \
 # Set permissions for the working directory
 RUN chown -R www-data:www-data /var/www/wb-back
 
+# Set permissions for the storage and cron.d directories
+RUN chown -R www-data:www-data /var/www/wb-back/storage && \
+    chmod -R 775 /var/www/wb-back/storage
+
+RUN chown -R www-data:www-data /var/www/wb-back/cron.d && \
+    chmod -R 775 /var/www/wb-back/cron.d
+
 # Install Supercronic
 ARG SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.29
 ARG SUPERCRONIC=supercronic-linux-amd64
@@ -52,5 +59,14 @@ RUN chmod +x /usr/local/bin/cron-schedule.sh
 
 # Switch to www-data user
 USER www-data
+
+# Ensure correct permissions for the vendor directory
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader && \
+    chown -R www-data:www-data /var/www/wb-back/vendor
+
+# Set permissions for logs directory
+RUN mkdir -p /var/www/wb-back/storage/logs && \
+    chown -R www-data:www-data /var/www/wb-back/storage/logs && \
+    chmod -R 775 /var/www/wb-back/storage/logs
 
 CMD ["php-fpm"]

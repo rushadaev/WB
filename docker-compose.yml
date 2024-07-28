@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
     tty: true
     ports:
-      - "8082:80"
+      - "8083:80"  # Changed the port to 8083 to avoid conflict
     volumes:
       - ./wb-back:/var/www/wb-back
       - ./nginx/conf.d:/etc/nginx/conf.d/
@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
     tty: true
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Changed the port to 5433 to avoid conflict
     environment:
       POSTGRES_DB: wb_app
       POSTGRES_USER: root
@@ -48,7 +48,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: scheduler
-    user: "1000:1000" # Ensure container runs as laravel user
+    user: "33:33" # Ensure container runs as www-data user
     volumes:
       - ./wb-back:/var/www/wb-back
     depends_on:
@@ -69,7 +69,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: queue-worker
-    user: "1000:1000" # Ensure container runs as laravel user
+    user: "33:33" # Ensure container runs as www-data user
     volumes:
       - ./wb-back:/var/www/wb-back
     depends_on:
