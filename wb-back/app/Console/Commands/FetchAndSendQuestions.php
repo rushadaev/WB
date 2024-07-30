@@ -6,6 +6,9 @@ use Illuminate\Console\Command;
 use App\Services\WildberriesService;
 use App\Jobs\SendTelegramMessage;
 use Carbon\Carbon;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use App\Traits\UsesWildberries;
 use Illuminate\Support\Facades\Log;
 use OpenAI\Laravel\Facades\OpenAI;
 
@@ -13,12 +16,11 @@ class FetchAndSendQuestions extends Command
 {
     protected $signature = 'fetch:send-questions {mode=single} {telegram_id?}'; // Mode can be 'single' or 'multiple'
     protected $description = 'Fetch questions from Wildberries and send them to Telegram';
-    protected $wildberriesService;
+    use UsesWildberries;
 
-    public function __construct(WildberriesService $wildberriesService)
+    public function __construct()
     {
         parent::__construct();
-        $this->wildberriesService = $wildberriesService;
     }
 
     public function handle()
@@ -26,7 +28,20 @@ class FetchAndSendQuestions extends Command
         $mode = $this->argument('mode');
         $telegramId = $this->argument('telegram_id') ?: config('telegram.default_user_id'); // Use provided telegram_id or default
 
-        $response = $this->wildberriesService->getQuestions();
+        $user = User::where('telegram_id', $telegramId)->first();
+        if (!$user) {
+            SendTelegramMessage::dispatch($telegramId, 'Пользователь не найден.', 'HTML'); 
+            return;
+        }
+
+        $apiKey = $user->getFeedbackApiKey();
+
+        if (!$apiKey) {
+            SendTelegramMessage::dispatch($telegramId, 'Нет ключа авторизации для службы Feedbacks.', 'HTML'); 
+            return;
+        }
+
+        $response = $this->useWildberries($apiKey, $user)->getQuestions(); 
 
         if ($response['error']) {
             Log::error('Failed to fetch questions from Wildberries API', [

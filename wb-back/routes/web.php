@@ -7,4 +7,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::post('/webhook/telegram', [TelegramController::class, 'handleWebhook']);
+Route::middleware(['telegram.auth'])->group(function () {
+    Route::post('/webhook/telegram/', [TelegramController::class, 'handleWebhook']);
+});

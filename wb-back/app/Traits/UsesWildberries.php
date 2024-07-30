@@ -6,8 +6,8 @@ use App\Services\WildberriesService;
 
 trait UsesWildberries
 {
-    protected function useWildberries(): WildberriesService
+    protected function useWildberries(string $apiKey, $user): WildberriesService
     {
-        return app(WildberriesService::class);
+        return new WildberriesService($apiKey, $user);
     }
 }

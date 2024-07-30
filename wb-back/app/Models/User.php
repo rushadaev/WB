@@ -20,6 +20,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'telegram_id',
     ];
 
     /**
@@ -43,5 +44,21 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+    public function apiKeys()
+    {
+        return $this->hasMany(APIKey::class);
+    }
+    
+    public function getSuppliesApiKey()
+    {
+        $apiKey = $this->apiKeys()->where('service', 'supplies')->first();
+        return $apiKey ? $apiKey->api_key : config('wildberries.supplies_api_key');
+    }
+
+    public function getFeedbackApiKey()
+    {
+        $apiKey = $this->apiKeys()->where('service', 'feedback')->first();
+        return $apiKey ? $apiKey->api_key : null;
     }
 }

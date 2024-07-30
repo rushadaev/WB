@@ -51,6 +51,9 @@ install-laravel:
 		rm -rf laravel-master master.zip && \
 		composer install"
 
+clean:
+	docker system prune -f
+	
 # Retry a specific failed job by ID
 retry-job:
 	@read -p "Enter job ID to retry: " job_id; \

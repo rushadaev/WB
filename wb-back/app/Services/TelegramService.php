@@ -19,5 +19,8 @@ class TelegramService
         return $this->telegram->sendMessage($chatId, $message, $parseMode, $disableWebPagePreview, $replyToMessageId, $replyMarkup);
     }
 
+    public function deleteMessage($chatId, $messageId){
+        return $this->telegram->deleteMessage($chatId, $messageId);
+    }
     // Add more methods as needed
 }
