@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use TelegramBot\Api\Client;
 use App\Models\User;
+use App\Models\Notification;
 use Illuminate\Support\Facades\Hash;
 use TelegramBot\Api\Types\ReplyKeyboardMarkup;
 use TelegramBot\Api\Types\Inline\InlineKeyboardMarkup;
@@ -27,11 +28,11 @@ class WarehouseBotController extends Controller
     ];
     
     const COEFFICIENTS = [
-        'free' => 'Бесплатная',
-        'upto1' => 'До х1',
-        'upto2' => 'До х2',
-        'upto3' => 'До х3',
-        'upto4' => 'До х4'
+        '0' => 'Бесплатная',
+        '1' => 'До х1',
+        '2' => 'До х2',
+        '3' => 'До х3',
+        '4' => 'До х4'
     ];
     
     const DATES = [
@@ -39,7 +40,7 @@ class WarehouseBotController extends Controller
         'tomorrow' => 'Завтра',
         'week' => 'Неделя',
         'untilfound' => 'Искать пока не найдется',
-        'customdates' => 'Ввести свои даты'
+        'customdates' => 'Ввести свою дату'
     ];
 
     public function __construct(Client $bot)
@@ -57,28 +58,29 @@ class WarehouseBotController extends Controller
         ];
     }
 
-    protected function sendOrUpdateMessage($chatId, $messageId = null, $message, $keyboard = null){
+    protected function sendOrUpdateMessage($chatId, $messageId = null, $message, $keyboard = null, $parsemode = null){
         if ($messageId) {
             try {
-                $this->bot->editMessageText($chatId, $messageId, $message, null, false, $keyboard);
+                $this->bot->editMessageText($chatId, $messageId, $message, $parsemode, false, $keyboard);
             } catch (\Exception $e) {
                 // If editing fails, send a new message
-                $this->bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+                $this->bot->sendMessage($chatId, $message, $parsemode, false, null, $keyboard);
             }
         } else {
-            $this->bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+            $this->bot->sendMessage($chatId, $message, $parsemode, false, null, $keyboard);
         }
     }
 
     public function handleStart($chatId, $messageId = null)
     {
-        $message = "Привет. Наш бот помогает найти бесплатную приемку на вб. Мы даем тебе 2 недели бесплатного доступа, а дальше по подписке.";
+        $message = "🤗 Данный бот помогает найти бесплатную приемку на вб.\n\n🆓 Мы даем тебе <b>2 недели бесплатного доступа</b>, а дальше по подписке.";
         $keyboard = new InlineKeyboardMarkup([
-            [['text' => '📦Склады', 'callback_data' => 'wh_warehouses'], ['text' => '🔎Поиск тайм-слотов', 'callback_data' => 'wh_notification']],
-            [['text' => '💵Оплата', 'callback_data' => 'wh_payment']]
+            [['text' => '📦 Склады', 'callback_data' => 'wh_warehouses'], ['text' => '🔎Поиск тайм-слотов', 'callback_data' => 'wh_notification']],
+            [['text' => '💵 Оплата', 'callback_data' => 'wh_payment']],
+            [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
         ]);
     
-        $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
+        $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
     }
 
     public function handleWarehouses($chatId, $page = 1, $messageId, $callbackData = 'wh_warehouse_get_')
@@ -214,8 +216,9 @@ class WarehouseBotController extends Controller
             list($warehouseId, $boxType, $coefficient, $date) = explode('_', str_replace('wh_date_set_', '', $data), 4);
             $this->handleDateSelection($chatId, $warehouseId, $boxType, $coefficient, $date, $messageId);
             return response()->json(['status' => 'success'], 200);
-        } elseif ($data === 'wh_start_notification') {
-            $this->handleStartNotification($chatId, $messageId);
+        } elseif (strpos($data, 'wh_start_notification_') === 0) {
+            $notification_id = str_replace('wh_start_notification_', '', $data);
+            $this->handleStartNotification($chatId, $messageId, $notification_id);
             return response()->json(['status' => 'success'], 200);
         } elseif ($data === 'wh_notification') {
             $this->handleNotification($chatId, $messageId);
@@ -227,6 +230,9 @@ class WarehouseBotController extends Controller
             $this->handlePayment($chatId, $messageId, 'success');
             return response()->json(['status' => 'success'], 200);
         } elseif ($data === 'wh_main_menu') {
+            $this->handleStart($chatId, $messageId);
+            return response()->json(['status' => 'success'], 200);
+        } elseif ($data === 'wh_warehouse_bot') {
             $this->handleStart($chatId, $messageId);
             return response()->json(['status' => 'success'], 200);
         } else {
@@ -286,23 +292,102 @@ class WarehouseBotController extends Controller
     // Update handleDateSelection method
     public function handleDateSelection($chatId, $warehouseId, $boxType, $coefficient, $date, $messageId)
     {
+        $now = Carbon::now();
+        $checkUntilDate = $now;
+        $boxTypeId = 2;//Коробка
+        switch ($date) {
+            case 'today':
+                $checkUntilDate = $now->endOfDay();
+                break;
+            case 'tomorrow':
+                $checkUntilDate = $now->addDay()->endOfDay();
+                break;
+            case 'week':
+                $checkUntilDate = $now->addWeek()->endOfDay();
+                break;
+            case 'untilfound':
+                $checkUntilDate = now()->addYears(5); // No end date
+                break;
+            case 'customdates':
+                // Temporarily set to null; will be updated when custom date is provided
+                $checkUntilDate = now()->addYears(5);
+                break;
+        }
+
+        switch($boxType){
+            case 'korob':
+               $boxTypeId = 2;
+               break;
+            case 'monopalet':
+                $boxTypeId = 5;
+                break;  
+            case 'supersafe':
+                $boxTypeId = 6;
+                break;  
+        }
         // Cache the notification settings
         $cacheKey = 'notification_settings_' . $chatId;
         $settings = [
+            'type' => 'warehouse_bot',
+            'chatId' => $chatId,
             'warehouseId' => $warehouseId,
             'boxType' => $boxType,
+            'boxTypeId' => $boxTypeId,
             'coefficient' => $coefficient,
-            'date' => $date
+            'date' => $date,
+            'checkUntilDate' => $checkUntilDate ? $checkUntilDate->toDateTimeString() : null,
         ];
 
-        Cache::put($cacheKey, $settings, now()->addDays(1));
+        $user = User::where('telegram_id', $chatId)->first();
+        $notification = Notification::create([
+            'user_id' => $user->id,
+            'settings' => $settings,
+            'status' => 'not_started'
+        ]);
 
-        // Send a summary to the user
-        $this->sendNotificationSummary($chatId, $settings, $messageId);
+        if ($date === 'customdates') {
+            Cache::put("session_{$chatId}", ['action' => 'collect_notification_expiration_date', 'notification_id' => $notification->id], 300); // Cache for 5 minutes
+            $this->bot->sendMessage($chatId, 'Введите дату в формате YYYY-MM-DD:');
+        } else {
+            $this->sendNotificationSummary($chatId, $notification, $messageId);
+        }
     }
 
-    public function sendNotificationSummary($chatId, $settings, $messageId = null)
+    public function handleCustomDateInput($chatId, $customDate)
     {
+        // Validate the custom date format
+        if (!Carbon::hasFormat($customDate, 'Y-m-d')) {
+            $this->bot->sendMessage($chatId, 'Неверный формат даты. Пожалуйста, введите дату в формате YYYY-MM-DD.');
+            return;
+        }
+    
+        // Retrieve the session data from the cache
+        $sessionData = Cache::get("session_{$chatId}", null);
+        if (!$sessionData || $sessionData['action'] !== 'collect_notification_expiration_date') {
+            $this->bot->sendMessage($chatId, 'Сессия истекла или неверное действие. Пожалуйста, начните заново.');
+            return;
+        }
+    
+        // Retrieve and update the notification
+        $notification = Notification::find($sessionData['notification_id']);
+        if ($notification) {
+            $settings = $notification->settings;
+            $settings['checkUntilDate'] = Carbon::parse($customDate)->endOfDay()->toDateTimeString();
+            $notification->settings = $settings;
+            $notification->save();
+    
+            // Remove the session data from the cache
+            Cache::forget("session_{$chatId}");
+    
+            $this->sendNotificationSummary($chatId, $notification);
+        } else {
+            $this->bot->sendMessage($chatId, 'Не удалось найти уведомление. Пожалуйста, начните заново.');
+        }
+    }
+
+    public function sendNotificationSummary($chatId, $notification, $messageId = null)
+    {
+        $settings = $notification->settings;
         // Retrieve warehouse name from cached warehouses
         $warehouses = Cache::get('warehouses', []);
         $warehouseName = $settings['warehouseId'];
@@ -321,25 +406,35 @@ class WarehouseBotController extends Controller
         $boxType = self::BOX_TYPES[$settings['boxType']] ?? 'Unknown';
         $coefficient = self::COEFFICIENTS[$settings['coefficient']] ?? 'Unknown';
         $date = self::DATES[$settings['date']] ?? 'Unknown';
-    
+        $checkUntilDate = $settings['checkUntilDate'] ?? 'Unknown';
+
         Log::info('settings', [$settings]);
         $message = "Ваши настройки уведомлений:\n";
         $message .= "Склад: {$warehouseName}\n";
         $message .= "Тип коробки: {$boxType}\n";
         $message .= "Тип приемки: {$coefficient}\n";
-        $message .= "Даты: {$date}\n";
+        $message .= "Проверять до: {$checkUntilDate}\n";
     
         $keyboard = new InlineKeyboardMarkup([
-            [['text' => '✅Запустить поиск', 'callback_data' => 'wh_start_notification']],
+            [['text' => '✅Запустить поиск', 'callback_data' => 'wh_start_notification_' . $notification->id]],
             [['text' => '🏠 Главное меню', 'callback_data' => 'wh_main_menu']]
         ]);
     
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
     }
 
-    public function handleStartNotification($chatId, $messageId)
+    public function handleStartNotification($chatId, $messageId, $notification_id)
     {
+        $notification = Notification::find($notification_id);
+        if ($notification) {
+            $notification->status = 'started';
+            $notification->save();
+        } else {
+            $this->bot->sendMessage($chatId, 'Не удалось найти уведомление. Пожалуйста, начните заново.');
+            return;
+        }
         $message = 'Мы уже ищем тайм-слот для вашей поставки!';
+        
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '← В главное меню', 'callback_data' => 'wh_main_menu']]
         ]);

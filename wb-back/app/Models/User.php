@@ -49,6 +49,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(APIKey::class);
     }
+
+    public function apiKeysCount(){
+        return $this->apiKeys()->count();
+    }
     
     public function getSuppliesApiKey()
     {

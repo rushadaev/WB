@@ -3,6 +3,10 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use App\Jobs\TelegramInspire;
+use App\Jobs\CheckCoefficientChanges;
+use App\Models\Notification;
+use App\Models\User;
+
 Artisan::command('inspire', function () {
     // Get the inspiring quote
     $quote = Inspiring::quote();
@@ -36,3 +40,9 @@ Artisan::command('inspire', function () {
     TelegramInspire::dispatch('782919745', $message, 'MarkdownV2');
 })->purpose('Display an inspiring quote')->hourly();
 
+Artisan::command('warehouse_bot', function () {
+    $notifications = Notification::where('status', 'started')->get();
+    foreach ($notifications as $notification) {
+        CheckCoefficientChanges::dispatch($notification);
+    }
+});

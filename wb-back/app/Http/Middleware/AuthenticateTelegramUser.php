@@ -22,10 +22,12 @@ class AuthenticateTelegramUser
             $chatId = $webhookData['message']['from']['id'];
         } elseif (isset($webhookData['callback_query']['from']['id'])) {
             $chatId = $webhookData['callback_query']['from']['id'];
+        } elseif (isset($webhookData['pre_checkout_query']['from']['id'])) {
+            $chatId = $webhookData['pre_checkout_query']['from']['id'];
         } else {
             return response()->json(['error' => 'Unauthorized. Chat ID not provided.'], 401);
         }
-
+        
         // Create or find the user
         $user = User::firstOrCreate(
             ['telegram_id' => $chatId],
