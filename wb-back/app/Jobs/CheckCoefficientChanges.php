@@ -10,6 +10,7 @@ use Illuminate\Queue\SerializesModels;
 use App\Traits\UsesWildberriesSupplies;
 use Illuminate\Support\Facades\Log;
 use App\Traits\UsesTelegram;
+use TelegramBot\Api\Types\Inline\InlineKeyboardMarkup;
 use Illuminate\Support\Facades\Cache;
 use App\Models\User;
 use Carbon\Carbon;
@@ -68,14 +69,11 @@ class CheckCoefficientChanges implements ShouldQueue
             if ($coefficientDate->lessThan($checkUntilDate)) {
                 if (isset($coefficient['boxTypeID']) && $coefficient['boxTypeID'] == $settings['boxTypeId']) {
 
-                    // $this->notifyUser($user->telegram_id, json_encode($coefficientDate));
-                    // $this->notifyUser($user->telegram_id, json_encode($checkUntilDate));
-                    $this->notifyUser($user->telegram_id, json_encode($coefficient));
                     // Get the cached coefficient value for the specific date
-                    $cacheKey = 'coefficient_' . $coefficientDate->toDateString();
+                    $cacheKey = 'notification_'. $this->notification->id .'_coefficient_' . $coefficientDate->toDateString();
                     $lastCoefficientValue = Cache::get($cacheKey);
 
-                    if ($trackedCoefficient !== null && $trackedCoefficient <= $coefficient['coefficient']) {
+                    if ($trackedCoefficient !== null && $coefficient['coefficient'] > -1 && $coefficient['coefficient'] <= $trackedCoefficient) {
                         //Check if we already sent user info about changed coeff
                         if ($lastCoefficientValue === null || $lastCoefficientValue != $coefficient['coefficient']) {
                             $date = Carbon::parse($coefficient['date'])->locale('ru')->isoFormat('D MMMM');
@@ -83,11 +81,8 @@ class CheckCoefficientChanges implements ShouldQueue
                             $boxTypeName = $coefficient['boxTypeName'];
                             $coeff = $coefficient['coefficient'];
                             // Coefficient has changed, notify the user and update the cache
-                            $message = "🔔Найден тайм-слот\n
-                            Дата: {$date}\n
-                            Склад: {$warehouseName}\n
-                            Короб: {$boxTypeName}\n
-                            Стоимость приемки: x{$coeff}"
+                            $message = "🔔 Найден тайм-слот\n
+📅 Дата: {$date}\n🏭 Склад: {$warehouseName}\n📦 Короб: {$boxTypeName}\n💰 Стоимость приемки: x{$coeff}";
                             $this->notifyUser($user->telegram_id, $message);
                             Cache::put($cacheKey, $coefficient['coefficient'], $checkUntilDate);
                         }
@@ -95,8 +90,8 @@ class CheckCoefficientChanges implements ShouldQueue
                         $checkUntilDate = $settings['checkUntilDate'];
                         $checkUntilDate = Carbon::parse($checkUntilDate);
                         if($settings['date'] == 'untilfound' || Carbon::now()->greaterThan($checkUntilDate)){
-                            $notification->status = 'finished';
-                            $notification->save();
+                            $this->notification->status = 'finished';
+                            $this->notification->save();
                         }
                     }
                 }
@@ -116,7 +111,11 @@ class CheckCoefficientChanges implements ShouldQueue
         return false;
     }
     protected function notifyUser($chatId, $message){
+        $keyboard = new InlineKeyboardMarkup([
+            [['text' => '📦 Создать поставку', 'callback_data' => 'wh_add_supply']],
+            [['text' => '← В главное меню', 'callback_data' => 'wh_main_menu']]
+        ]);
         $telegram = $this->useTelegram();
-        $telegram->sendMessage($chatId, $message, 'HTML', false, null, null);
+        $telegram->sendMessage($chatId, $message, 'HTML', false, null, $keyboard);
     }
 }

@@ -45,4 +45,4 @@ Artisan::command('warehouse_bot', function () {
     foreach ($notifications as $notification) {
         CheckCoefficientChanges::dispatch($notification);
     }
-});
+})->purpose('Check if coefficient has been changed')->everyMinute();
