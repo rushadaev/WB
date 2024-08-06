@@ -38,6 +38,12 @@ class AuthenticateTelegramUser
             ]
         );
 
+        // If user is found but subscription_until is not set, update it
+        if (!$user->wasRecentlyCreated && is_null($user->subscription_until)) {
+            $user->subscription_until = now()->addDays(3);
+            $user->save();
+        }
+
         Auth::login($user);
 
         return $next($request);

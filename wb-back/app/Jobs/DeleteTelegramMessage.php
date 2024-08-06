@@ -21,6 +21,7 @@ class DeleteTelegramMessage implements ShouldQueue
     public function __construct(
         public string $telegramId,
         public string $messageId,
+        public string $botToken,
     ) {}
 
     /**
@@ -30,6 +31,7 @@ class DeleteTelegramMessage implements ShouldQueue
     {
         sleep(3);
         $telegram = $this->useTelegram();
+        $telegram->setBotToken($this->botToken);
         $telegram->deleteMessage($this->telegramId, $this->messageId);
     }
 }

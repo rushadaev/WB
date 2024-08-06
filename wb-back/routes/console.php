@@ -43,6 +43,6 @@ Artisan::command('inspire', function () {
 Artisan::command('warehouse_bot', function () {
     $notifications = Notification::where('status', 'started')->get();
     foreach ($notifications as $notification) {
-        CheckCoefficientChanges::dispatch($notification);
+        CheckCoefficientChanges::dispatch($notification, config('telegram.bot_token_supplies'));
     }
 })->purpose('Check if coefficient has been changed')->everyMinute();

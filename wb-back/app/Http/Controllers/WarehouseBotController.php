@@ -73,14 +73,46 @@ class WarehouseBotController extends Controller
 
     public function handleStart($chatId, $messageId = null)
     {
-        $message = "🤗 Данный бот помогает найти бесплатную приемку на вб.\n\n🆓 Мы даем тебе <b>2 недели бесплатного доступа</b>, а дальше по подписке.";
+        $user = User::where('telegram_id', $chatId)->first();
+        if (!$user->has_active_subscription) {
+            $message = "⚠️Подписка закончилась, необходимо оплатить\n\nМы помогаем найти бесплатную приемку на WB 🔥
+    
+Вы можете узнать коэффициент онлайн или поставить уведомление на бесплатную приемку 🤙
+    
+У вас действует 3 дня бесплатного доступа 🤝";
+        }
+        else {
+        $message = "Мы помогаем найти бесплатную приемку на WB 🔥
+
+Вы можете узнать коэффициент онлайн или поставить уведомление на бесплатную приемку 🤙
+
+У вас действует 3 дня бесплатного доступа 🤝";
+        }
         $keyboard = new InlineKeyboardMarkup([
-            [['text' => '📦 Склады', 'callback_data' => 'wh_warehouses'], ['text' => '🔎Поиск тайм-слотов', 'callback_data' => 'wh_notification']],
-            [['text' => '💵 Оплата', 'callback_data' => 'wh_payment']],
-            [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
+            [['text' => '📦 Узнать КФ', 'callback_data' => 'wh_warehouses'], ['text' => '🔎 Найти тайм-слот', 'callback_data' => 'wh_notification']],
+            [['text' => '💵 Подписка', 'callback_data' => 'wh_payment']]
         ]);
     
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
+    }
+
+    /**
+     * Extend the user's subscription by a given number of days.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\Response
+     */
+    public function extend(Request $request)
+    {
+        $request->validate([
+            'days' => 'required|integer|min:1',
+        ]);
+
+        $user = Auth::user();
+
+        $user->subscription_until = now()->addDays($request->days);
+        $user->save();
+
     }
 
     public function handleWarehouses($chatId, $page = 1, $messageId, $callbackData = 'wh_warehouse_get_')
@@ -90,6 +122,12 @@ class WarehouseBotController extends Controller
             $this->bot->sendMessage($chatId, 'Пользователь не найден');
             return;
         }
+        
+        if (!$user->has_active_subscription) {
+            $this->handlePayment($chatId, $messageId, 'init');
+            return;
+        }
+
         $apiKey = $user->getSuppliesApiKey();
         if (!$apiKey) {
             $this->bot->sendMessage($chatId, 'Нет ключа авторизации для службы Supplies.');
@@ -104,8 +142,50 @@ class WarehouseBotController extends Controller
             $this->bot->sendMessage($chatId, 'Произошла ошибка при получении данных складов: ' . $warehousesResponse['errorText']);
             return;
         }
-    
+
         $warehouses = $warehousesResponse['data'];
+        // Define the prioritized warehouses in the desired order
+        $prioritizedWarehouses = [
+            'Коледино' => 507,
+            'Электросталь' => 120762,
+            'Подольск' => 117501,
+            'Подольск 3' => 218623,
+            'Подольск 4' => 301229,
+            'Кузнецк' => 302335,
+            'Казань' => 117986,
+            'Краснодар (Тихорецкая)' => 130744,
+            'Тула' => 206348,
+            'Белые Столбы' => 206236,
+            'Невинномысск' => 208277,
+            'Екатеринбург - Испытателей 14г' => 1733,
+            'Екатеринбург - Перспективный 12/2' => 300571,
+            'Новосибирск' => 686,
+            'Чашниково' => 321932,
+            'Рязань (Тюшевское)' => 301760,
+        ];
+
+        // Separate and sort prioritized warehouses
+        $prioritizedList = [];
+        $otherWarehouses = [];
+
+        foreach ($prioritizedWarehouses as $name => $id) {
+            foreach ($warehouses as $warehouse) {
+                if ($warehouse['ID'] == $id && $warehouse['name'] == $name) {
+                    $prioritizedList[] = $warehouse;
+                    break;
+                }
+            }
+        }
+
+        foreach ($warehouses as $warehouse) {
+            if (!in_array($warehouse, $prioritizedList)) {
+                $otherWarehouses[] = $warehouse;
+            }
+        }
+
+        // Merge prioritized warehouses with the rest
+        $warehouses = array_merge($prioritizedList, $otherWarehouses);
+        
         $totalWarehouses = count($warehouses);
         $perPage = 5;
         $totalPages = ceil($totalWarehouses / $perPage);
@@ -146,6 +226,13 @@ class WarehouseBotController extends Controller
 
     public function handleNotification($chatId, $messageId)
     {
+        $user = User::where('telegram_id', $chatId)->first();
+
+        if (!$user->has_active_subscription) {
+            $this->handlePayment($chatId, $messageId, 'init');
+            return;
+        }
+
         $message = 'Поиск слотов - запуск отслеживания по вашим параметрам, без автоматического бронирования. Как только нужный слот будет найдет - вам придет уведомление.';
         $keyboard = new InlineKeyboardMarkup([
             [['text' => 'Приступить 🏁', 'callback_data' => 'wh_choose_warehouse']],
@@ -156,12 +243,16 @@ class WarehouseBotController extends Controller
 
     public function handlePayment($chatId, $messageId, $step)
     {
+        $keyboard = new InlineKeyboardMarkup([
+            [['text' => '1 неделя -> 400р', 'callback_data' => 'pay_1_week']],
+            [['text' => '1 месяц -> 1000р', 'callback_data' => 'pay_1_month']],
+            [['text' => '3 месяца -> 2500р', 'callback_data' => 'pay_3_months']],
+            [['text' => '6 месяцев -> 5000р', 'callback_data' => 'pay_6_months']],
+            [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']]
+        ]);
+
         if($step == 'init'){
-            $message = "Стоимость подписки 2000 рублей в месяц. Ваша подписка до 28 июля.";
-            $keyboard = new InlineKeyboardMarkup([
-                [['text' => '💵Оплатить', 'callback_data' => 'wh_payment_success']],
-                [['text' => '← В главное меню', 'callback_data' => 'wh_main_menu']]
-            ]);
+            $message = "Выберите тариф, чтобы продолжить";
         }
         elseif($step == 'success'){
             $message = "Спасибо за оплату! Ваша подписка до 28 августа.";
@@ -474,7 +565,7 @@ class WarehouseBotController extends Controller
             $errorMessageId = $message->getMessageId();
         
 
-            DeleteTelegramMessage::dispatch($chatId, $errorMessageId); 
+            DeleteTelegramMessage::dispatch($chatId, $errorMessageId, config('telegram.bot_token_supplies')); 
 
             return;
         }

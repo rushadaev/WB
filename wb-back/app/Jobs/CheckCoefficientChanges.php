@@ -28,6 +28,7 @@ class CheckCoefficientChanges implements ShouldQueue
      */
     public function __construct(
         public $notification,
+        public $botToken,
     ) {}
 
     /**
@@ -116,6 +117,7 @@ class CheckCoefficientChanges implements ShouldQueue
             [['text' => '← В главное меню', 'callback_data' => 'wh_main_menu']]
         ]);
         $telegram = $this->useTelegram();
+        $telegram->setBotToken($this->botToken);
         $telegram->sendMessage($chatId, $message, 'HTML', false, null, $keyboard);
     }
 }

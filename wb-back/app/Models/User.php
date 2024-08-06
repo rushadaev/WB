@@ -6,10 +6,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Carbon\Carbon;
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable;
+
+    protected $dates = ['subscription_until'];
 
     /**
      * The attributes that are mass assignable.
@@ -43,6 +46,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'subscription_until' => 'datetime',
         ];
     }
     public function apiKeys()
@@ -64,5 +68,15 @@ class User extends Authenticatable
     {
         $apiKey = $this->apiKeys()->where('service', 'feedback')->first();
         return $apiKey ? $apiKey->api_key : null;
+    }
+    
+    /**
+     * Check if the user has an active subscription.
+     *
+     * @return bool
+     */
+    public function getHasActiveSubscriptionAttribute()
+    {
+        return $this->subscription_until && $this->subscription_until->isFuture();
     }
 }
