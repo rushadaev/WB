@@ -175,44 +175,56 @@ class TelegramControllerSupplies extends Controller
     {
         switch ($data) {
             case 'pay_1_week':
-                $this->sendInvoice($chatId, '1 неделя', 'Покупка 1 неделя', 'pay_1_week', 40000);
+                $this->sendInvoice($chatId, '1 неделя', 'Покупка 1 неделя', 'pay_1_week', 400);
                 break;
             case 'pay_1_month':
-                $this->sendInvoice($chatId, '1 месяц', 'Покупка 1 месяц', 'pay_1_month', 100000);
+                $this->sendInvoice($chatId, '1 месяц', 'Покупка 1 месяц', 'pay_1_month', 1000);
                 break;
             case 'pay_3_months':
-                $this->sendInvoice($chatId, '3 месяца', 'Покупка 3 месяца', 'pay_3_months', 250000);
+                $this->sendInvoice($chatId, '3 месяца', 'Покупка 3 месяца', 'pay_3_months', 2500);
                 break;
             case 'pay_6_months':
-                $this->sendInvoice($chatId, '6 месяцев', 'Покупка 6 месяцев', 'pay_6_months', 500000);
+                $this->sendInvoice($chatId, '6 месяцев', 'Покупка 6 месяцев', 'pay_6_months', 5000);
+                break;
+            case 'pay_forever':
+                $this->sendInvoice($chatId, 'навсегда', 'Покупка навсегда', 'pay_forever', 10000);
                 break;
         }
     }
 
     protected function sendInvoice($chatId, $title, $description, $payload, $price)
     {
+        $payment = new PaymentController();
         $bot = new Client(config('telegram.bot_token_supplies'));
-        $bot->sendInvoice(
-            $chatId,
-            $title,
-            $description,
-            $payload,
-            config('telegram.payment_provider_token_supplies'),
-            'start_parameter',  // This should be a unique start parameter for the invoice
-            'RUB',
-            [['label' => $title, 'amount' => $price]],
-            [
-                'photo_url' => 'https://your-image-url.com/image.jpg', // Optional
-                'photo_size' => 600, // Optional
-                'photo_width' => 600, // Optional
-                'photo_height' => 400, // Optional
-                'need_name' => true, // Optional
-                'need_phone_number' => true, // Optional
-                'need_email' => true, // Optional
-                'need_shipping_address' => false, // Optional
-                'is_flexible' => false // Optional
-            ]
-        );
+        $orderId = $chatId.'_'.$payload;
+        $url = $payment->createPaymentLink($price, $orderId, $chatId, $description, $payload);
+        $message = '💸 '.$description;
+        $keyboard = new InlineKeyboardMarkup([
+            [['text' => '💳 Оплатить', 'url' => $url]],
+            [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']] 
+        ]);
+        $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+        // $bot->sendInvoice(
+        //     $chatId,
+        //     $title,
+        //     $description,
+        //     $payload,
+        //     config('telegram.payment_provider_token_supplies'),
+        //     'start_parameter',  // This should be a unique start parameter for the invoice
+        //     'RUB',
+        //     [['label' => $title, 'amount' => $price]],
+        //     [
+        //         'photo_url' => 'https://your-image-url.com/image.jpg', // Optional
+        //         'photo_size' => 600, // Optional
+        //         'photo_width' => 600, // Optional
+        //         'photo_height' => 400, // Optional
+        //         'need_name' => true, // Optional
+        //         'need_phone_number' => true, // Optional
+        //         'need_email' => true, // Optional
+        //         'need_shipping_address' => false, // Optional
+        //         'is_flexible' => false // Optional
+        //     ]
+        // );
     }
 
     protected function setApiKey($chatId, $apiKey, $service, Client $bot)

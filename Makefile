@@ -17,6 +17,9 @@ restart:
 shell:
 	docker-compose exec wb-app bash
 
+shell-root:
+	docker-compose exec --user root wb-app bash
+
 composer:
 	docker-compose exec wb-app composer $(filter-out $@,$(MAKECMDGOALS))
 

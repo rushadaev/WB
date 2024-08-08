@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\TelegramControllerSupplies;
 
@@ -12,3 +13,7 @@ Route::middleware(['telegram.auth'])->group(function () {
     Route::post('/webhook/telegram/', [TelegramController::class, 'handleWebhook']);
     Route::post('/webhook/telegram/supplies', [TelegramControllerSupplies::class, 'handleWebhookSupplies']);
 });
+
+
+Route::get('/payment/return', [PaymentController::class, 'paymentReturn'])->name('payment.return');
+Route::post('/webhook/payment/success', [PaymentController::class, 'paymentSuccess'])->name('payment.success');

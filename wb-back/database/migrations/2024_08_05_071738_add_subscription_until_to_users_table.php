@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->timestamp('subscription_until')->nullable();
+            $table->boolean('is_paid')->default(false);
         });
     }
 
@@ -23,6 +24,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('subscription_until');
+            $table->dropColumn('is_paid');
         });
     }
 };
