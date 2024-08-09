@@ -6,7 +6,7 @@ use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\TelegramControllerSupplies;
 
 Route::get('/', function () {
-    return view('welcome');
+    return "Hey there!";
 });
 
 Route::middleware(['telegram.auth'])->group(function () {

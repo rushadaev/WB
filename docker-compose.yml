@@ -19,10 +19,12 @@ services:
     restart: unless-stopped
     tty: true
     ports:
-      - "8083:80"  # Changed the port to 8083 to avoid conflict
+      - "80:80"  # Changed the port to 8083 to avoid conflict
+      - "443:443"
     volumes:
       - ./wb-back:/var/www/wb-back
       - ./nginx/conf.d:/etc/nginx/conf.d/
+      - ./nginx/certs:/etc/nginx/certs/
       - ./nginx/snippets:/etc/nginx/snippets
     networks:
       - app-network

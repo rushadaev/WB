@@ -69,4 +69,7 @@ RUN mkdir -p /var/www/wb-back/storage/logs && \
     chown -R www-data:www-data /var/www/wb-back/storage/logs && \
     chmod -R 775 /var/www/wb-back/storage/logs
 
+# Expose port 9000 for PHP-FPM
+EXPOSE 9000
+
 CMD ["php-fpm"]

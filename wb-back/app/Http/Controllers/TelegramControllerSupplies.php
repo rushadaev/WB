@@ -104,7 +104,10 @@ class TelegramControllerSupplies extends Controller
                 $chatId = $callbackQuery->getMessage()->getChat()->getId();
                 $data = $callbackQuery->getData();
                 $messageId = $callbackQuery->getMessage()->getMessageId();
-                $this->handleCallbackQuery($chatId, $data, $messageId, $warehouseBot, $welcomeBot, $user);
+                
+                
+
+                $this->handleCallbackQuery($chatId, $data, $messageId, $warehouseBot, $welcomeBot, $user, $callbackQuery, $bot);
                 return;
             } elseif ($preCheckoutQuery){
                 $bot->answerPreCheckoutQuery([
@@ -122,10 +125,13 @@ class TelegramControllerSupplies extends Controller
         });
     }
 
-    protected function handleCallbackQuery($chatId, $data, $messageId, WarehouseBotController $warehouseBot, WelcomeBotController $welcomeBot, $user)
+    protected function handleCallbackQuery($chatId, $data, $messageId, WarehouseBotController $warehouseBot, WelcomeBotController $welcomeBot, $user, $callbackQuery, $bot)
     {
         if (strpos($data, 'wh_') === 0) {
             $warehouseBot->handleInlineQuery($chatId, $data, $messageId);
+            if (strpos($data, 'wh_start_notification_') === 0){
+                $bot->answerCallbackQuery($callbackQuery->getId(), '👍🏻 Мы уже ищем тайм-слот для вашей поставки!', true);
+            }
         } elseif (strpos($data, 'welcome_') === 0) {
             $welcomeBot->handleInlineQuery($chatId, $data, $messageId);
         } elseif (strpos($data, 'pay_') === 0) {
@@ -134,6 +140,10 @@ class TelegramControllerSupplies extends Controller
             // Add handling for other types of callback queries here
             $this->handleOtherCallbackQueries($chatId, $data, $messageId);
         }
+
+        //hideloader
+        $bot->answerCallbackQuery($callbackQuery->getId(), '', null);
+        
         return response()->json(['status' => 'success'], 200);
     }
 
