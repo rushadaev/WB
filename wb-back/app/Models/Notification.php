@@ -17,4 +17,12 @@ class Notification extends Model
     protected $casts = [
         'settings' => 'array', // Cast the settings column to an array
     ];
+
+   /**
+     * Get the user that owns the notification.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    } 
 }

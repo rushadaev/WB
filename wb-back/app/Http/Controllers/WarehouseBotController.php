@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Cache;
 use App\Traits\UsesWildberriesSupplies;
 use App\Jobs\DeleteTelegramMessage;
 use Carbon\Carbon;
+use App\Models\WarehouseCoefficient;
+use App\Jobs\SendUserNotificationMessage;
 use Illuminate\Support\Facades\DB;
 
 class WarehouseBotController extends Controller
@@ -281,7 +283,7 @@ class WarehouseBotController extends Controller
             [['text' => '1 месяц -> 1000р', 'callback_data' => 'pay_1_month']],
             [['text' => '3 месяца -> 2500р', 'callback_data' => 'pay_3_months']],
             [['text' => '6 месяцев -> 5000р', 'callback_data' => 'pay_6_months']],
-            [['text' => 'навсегда -> 15000р', 'callback_data' => 'pay_forever']],
+            [['text' => 'навсегда -> 10000р', 'callback_data' => 'pay_forever']],
             [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']]
         ]);
 
@@ -564,6 +566,32 @@ class WarehouseBotController extends Controller
             [['text' => '← В главное меню', 'callback_data' => 'wh_main_menu']]
         ]);
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
+
+
+        $settings = $notification->settings;
+        // Retrieve warehouse name from cached warehouses
+        $warehouses = Cache::get('warehouses', []);
+        $warehouseName = $settings['warehouseId'];
+
+        // Check if the 'data' key exists in the $warehouses array
+        if (isset($warehouses['data']) && is_array($warehouses['data'])) {
+            foreach ($warehouses['data'] as $warehouse) {
+                if (isset($warehouse['ID']) && $warehouse['ID'] == $settings['warehouseId']) {
+                    $warehouseName = $warehouse['name'];
+                    break;
+                }
+            }
+        }
+        
+        // Retrieve human-readable labels from constants
+        $boxType = self::BOX_TYPES[$settings['boxType']] ?? 'Unknown';
+        $coefficient = self::COEFFICIENTS[$settings['coefficient']] ?? 'Unknown';
+        $date = self::DATES[$settings['date']] ?? 'Unknown';
+        $checkUntilDate = $settings['checkUntilDate'] ?? 'Unknown';
+
+        $username = $notification->user->name;
+        $message = "#таймслот\n@{$username} поставил поиск тайм-слота на\nСклад: {$warehouseName}\nВремя: {$checkUntilDate}\nКоэффициент: {$coefficient}";
+        SendUserNotificationMessage::dispatch($message, 'HTML');
     }
 
 
@@ -584,8 +612,8 @@ class WarehouseBotController extends Controller
         }
 
         // Fetch the acceptance coefficients for the warehouse, with caching
-        $coefficientsResponse = Cache::remember($cacheKey, 6 * 60, function() use ($warehouseId, $user, $apiKey) {
-            return $this->useWildberriesSupplies($apiKey)->getAcceptanceCoefficients($warehouseId);
+        $coefficientsResponse = Cache::remember($cacheKey, 60, function() use ($warehouseId, $user, $apiKey) {
+            return $this->useWildberriesSupplies($apiKey)->getStoredAcceptanceCoefficients($warehouseId);
         });
     
         if ($coefficientsResponse['error']) {

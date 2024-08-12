@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use App\Jobs\SendUserNotificationMessage;
 
 class AuthenticateTelegramUser
 {
@@ -20,10 +21,13 @@ class AuthenticateTelegramUser
         // Extract chat ID from message or callback_query
         if (isset($webhookData['message']['from']['id'])) {
             $chatId = $webhookData['message']['from']['id'];
+            $username = $webhookData['message']['from']['username'] ?? null;
         } elseif (isset($webhookData['callback_query']['from']['id'])) {
             $chatId = $webhookData['callback_query']['from']['id'];
+            $username = $webhookData['callback_query']['from']['username'] ?? $chatId;
         } elseif (isset($webhookData['pre_checkout_query']['from']['id'])) {
             $chatId = $webhookData['pre_checkout_query']['from']['id'];
+            $username = $webhookData['pre_checkout_query']['from']['username'] ?? null;
         } else {
             return response()->json(['error' => 'Unauthorized. Chat ID not provided.'], 401);
         }
@@ -32,15 +36,18 @@ class AuthenticateTelegramUser
         $user = User::firstOrCreate(
             ['telegram_id' => $chatId],
             [
-                'name' => 'TelegramUser_' . $chatId, // Default name
+                'name' => $username, // username
                 'email' => $chatId . '@telegram.com', // Default email
                 'password' => Hash::make('default_password'), // Default password
             ]
         );
 
+        //First login basically
         if (is_null($user->subscription_until)) {
             $user->subscription_until = now()->addDays(3);
             $user->save();
+            $message = "#подписка\n@{$username} подписался на бота";
+            SendUserNotificationMessage::dispatch($message, 'HTML');
         }
 
         Auth::login($user);

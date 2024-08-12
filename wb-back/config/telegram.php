@@ -5,5 +5,7 @@ return [
     'bot_token_supplies' => env('TELEGRAM_BOT_TOKEN_SUPPLIES', 'your-telegram-bot-token'), 
     'default_user_id' => '782919745',
     'payment_provider_token' => env('PAYMENT_PROVIDER_TOKEN', 'token'),
-    'payment_provider_token_supplies' => env('PAYMENT_PROVIDER_TOKEN_SUPPLIES', 'token') 
+    'payment_provider_token_supplies' => env('PAYMENT_PROVIDER_TOKEN_SUPPLIES', 'token'),
+    'bot_token_notification' => env('TELEGRAM_BOT_TOKEN_NOTIFICATION', 'your-telegram-bot-token'),
+    'notification_group' => env('TELEGRAM_NOTIFICATION_GROUP', 'your-telegram-bot-token'), 
 ];

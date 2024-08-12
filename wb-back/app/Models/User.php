@@ -81,4 +81,12 @@ class User extends Authenticatable
     {
         return $this->subscription_until && $this->subscription_until->isFuture();
     }
+
+    /**
+     * Get the notifications for the user.
+     */
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
 }

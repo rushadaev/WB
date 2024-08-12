@@ -4,6 +4,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use App\Jobs\TelegramInspire;
 use App\Jobs\CheckCoefficientChanges;
+use App\Jobs\FetchWarehouseCoefficientsJob;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -46,3 +47,7 @@ Artisan::command('warehouse_bot', function () {
         CheckCoefficientChanges::dispatch($notification, config('telegram.bot_token_supplies'));
     }
 })->purpose('Check if coefficient has been changed')->everyMinute();
+
+Artisan::command('warehouse_bot_fetch_coefficients', function () {
+    FetchWarehouseCoefficientsJob::dispatch();
+})->purpose('Fetch updated coefficients from WB')->everyFifteenSeconds();

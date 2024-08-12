@@ -11,6 +11,7 @@ use App\Traits\UsesWildberriesSupplies;
 use Illuminate\Support\Facades\Log;
 use App\Traits\UsesTelegram;
 use TelegramBot\Api\Types\Inline\InlineKeyboardMarkup;
+use App\Models\WarehouseCoefficient;
 use Illuminate\Support\Facades\Cache;
 use App\Models\User;
 use Carbon\Carbon;
@@ -52,7 +53,7 @@ class CheckCoefficientChanges implements ShouldQueue
         }
 
         // Fetch the latest coefficients from the API
-        $response = $this->useWildberriesSupplies($apiKey)->getAcceptanceCoefficients($settings['warehouseId']);
+        $response = $this->useWildberriesSupplies($apiKey)->getStoredAcceptanceCoefficients($settings['warehouseId']);
         if ($response['error']) {
             Log::error('Error fetching coefficients: ' . $response['errorText']);
             return;

@@ -52,6 +52,38 @@ class YooKassaService
         return $payment->getConfirmation()->getConfirmationUrl();
     }
 
+    public function createPaymentLinkTest($amount, $orderId, $telegramId, $description, $subscriptionPeriod)
+    {
+        $this->client->setAuth(config('yookassa.test_shop_id'), config('yookassa.test_secret_key'));
+        $uniqueId = uniqid('', true);
+
+        $payment = $this->client->createPayment(
+            [
+                'amount' => [
+                    'value' => $amount,
+                    'currency' => 'RUB',
+                ],
+                'confirmation' => [
+                    'type' => 'redirect',
+                    'return_url' => route('payment.return', ['orderId' => $orderId]),
+                ],
+                'capture' => true,
+                'description' => $description,
+                'metadata' => [
+                    'order_id' => $orderId,
+                    'telegram_id' => $telegramId,
+                    'subscription_period' => $subscriptionPeriod
+                ],
+            ],
+            $uniqueId
+        );
+
+        // Store payment ID in cache with the order ID as the key
+        Cache::put("payment_id_{$orderId}", $payment->getId(), now()->addMinutes(60));
+
+        return $payment->getConfirmation()->getConfirmationUrl();
+    }
+
     public function listOrders($id)
     {
         return Order::where('user_id', $id)->get();

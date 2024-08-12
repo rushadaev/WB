@@ -8,6 +8,7 @@ use App\Services\TelegramNotificationService;
 use TelegramBot\Api\Types\Inline\InlineKeyboardMarkup;
 use App\Models\User;
 use Carbon\Carbon;
+use App\Jobs\SendUserNotificationMessage;
 use App\Traits\UsesYooKassa;
 
 class PaymentController extends Controller
@@ -23,6 +24,17 @@ class PaymentController extends Controller
     {
         try{
             $url = $this->yooKassaService->createPaymentLink($amount, $orderId, $telegramId, $description, $subscriptionPeriod);
+        } catch (\Exception $e) {
+            $url = $e;
+            Log::error($e->getMessage());
+        }
+        return $url;
+    }
+
+    public function createPaymentLinkTest($amount, $orderId, $telegramId, $description, $subscriptionPeriod)
+    {
+        try{
+            $url = $this->yooKassaService->createPaymentLinkTest($amount, $orderId, $telegramId, $description, $subscriptionPeriod);
         } catch (\Exception $e) {
             $url = $e;
             Log::error($e->getMessage());
@@ -106,6 +118,10 @@ class PaymentController extends Controller
                             [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']] 
                         ]);
                         TelegramNotificationService::notify($telegramId, $message, config('telegram.bot_token_supplies'), $keyboard);
+
+                        $username = $user->name;
+                        $message = "#оплата\n@{$username} купил подписку <code>{$subscriptionPeriod}</code>";
+                        SendUserNotificationMessage::dispatch($message, 'HTML');
                         Log::info('User subscription updated', ['user' => $user, 'days_added' => $daysToAdd]);
                     } else {
                         Log::warning('Invalid subscription period', ['subscription_period' => $subscriptionPeriod]);
