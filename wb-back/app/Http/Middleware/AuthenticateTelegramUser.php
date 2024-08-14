@@ -28,6 +28,9 @@ class AuthenticateTelegramUser
         } elseif (isset($webhookData['pre_checkout_query']['from']['id'])) {
             $chatId = $webhookData['pre_checkout_query']['from']['id'];
             $username = $webhookData['pre_checkout_query']['from']['username'] ?? null;
+        } elseif (isset($webhookData['my_chat_member']['from']['id'])){
+            $chatId = $webhookData['my_chat_member']['from']['id'];
+            $username = $webhookData['my_chat_member']['from']['username'] ?? null;
         } else {
             return response()->json(['error' => 'Unauthorized. Chat ID not provided.'], 401);
         }

@@ -116,9 +116,9 @@ class WildberriesSuppliesService
                 ];
             }
 
-            Log::info('Success fetching stored coefficients', [
-                'message' => 'Got it!',
-            ]);
+            // Log::info('Success fetching stored coefficients', [
+            //     'message' => 'Got it!',
+            // ]);
             // Ensure the keys match the expected structure
             $coefficientsArray = $coefficients->map(function($item) {
                 return [

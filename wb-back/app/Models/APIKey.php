@@ -20,4 +20,10 @@ class APIKey extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    // Define the relationship with Cabinet
+    public function cabinet()
+    {
+        return $this->belongsTo(Cabinet::class);
+    }
 }

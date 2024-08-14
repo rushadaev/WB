@@ -56,6 +56,13 @@ class User extends Authenticatable
         return $this->hasMany(APIKey::class);
     }
 
+    // Define the relationship with Cabinet
+    public function cabinets()
+    {
+        return $this->hasMany(Cabinet::class);
+    }
+ 
+
     public function apiKeysCount(){
         return $this->apiKeys()->count();
     }

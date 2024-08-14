@@ -20,7 +20,8 @@ class SendUserNotificationMessage implements ShouldQueue
      */
     public function __construct(
         public string $message,
-        public string $parse_mode
+        public string $parse_mode,
+        public $keyboard = null
     ) {}
 
     /**
@@ -32,6 +33,6 @@ class SendUserNotificationMessage implements ShouldQueue
         $group = config('telegram.notification_group');
         $telegram = $this->useTelegram();
         $telegram->setBotToken($token);
-        $telegram->sendMessage($group, $this->message, $this->parse_mode, false, null, null);
+        $telegram->sendMessage($group, $this->message, $this->parse_mode, false, null, $this->keyboard);
     }
 }

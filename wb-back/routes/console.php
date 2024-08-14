@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Artisan;
 use App\Jobs\TelegramInspire;
 use App\Jobs\CheckCoefficientChanges;
 use App\Jobs\FetchWarehouseCoefficientsJob;
+use App\Jobs\CheckSubscriptionExpiration;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -51,3 +52,8 @@ Artisan::command('warehouse_bot', function () {
 Artisan::command('warehouse_bot_fetch_coefficients', function () {
     FetchWarehouseCoefficientsJob::dispatch();
 })->purpose('Fetch updated coefficients from WB')->everyFifteenSeconds();
+
+
+Artisan::command('warehouse_bot_check_subscription_expiration', function () {
+    CheckSubscriptionExpiration::dispatch();
+})->purpose('Check subscription expiration')->hourly();

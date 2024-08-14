@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use App\Jobs\DeleteTelegramMessage;
 use App\Models\User;
 
 class TelegramController extends Controller
@@ -66,10 +67,31 @@ class TelegramController extends Controller
             $chatId = $message->getChat()->getId();
             $bot->sendMessage($chatId, 'pong!');
         });
-
-        $bot->command('start', function ($message) use ($welcomeBot, $user) {
+        $bot->command('start', function ($message) use ($welcomeBot, $user, $bot) {
             $chatId = $message->getChat()->getId();
-            $welcomeBot->handleStart($chatId);
+            $text = $message->getText();
+            $isCabinetGroupChat = $this->getUserCabinetGroupChatId($user);
+            if (preg_match('/\/start\s+AddReviews_(\d+)/', $text, $matches) && $chatId != $user->telegram_id) {
+                $cabinetId = $matches[1];
+                $welcomeBot->setupCabinet($cabinetId, $chatId, $bot);
+            } elseif($chatId == $user->telegram_id){
+                $welcomeBot->handleStart($chatId);
+            } else{
+                $messageId = $message->getMessageId();
+                DeleteTelegramMessage::dispatch($chatId, $messageId, config('telegram.bot_token')); 
+
+                $keyboard = new InlineKeyboardMarkup([
+                    [['text' => '🍓 Перейти в бота', 'url' => 'https://t.me/wbhelpyfb_bot']] 
+                ]);
+                if($text !== '/start@wbhelpyfb_bot true'){
+                    $message = "Попробуйте ввести команду в боте 🚀";
+                    $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+                }
+                if($text == '/start@wbhelpyfb_bot true' && !$isCabinetGroupChat){
+                    $message = "⚠️Не удалось автоматически подключить чат, пришлите код";
+                    $bot->sendMessage($chatId, $message, null, false, null, null); 
+                }
+            }
         });
 
         $bot->command('notification', function ($message) use ($warehouseBot, $user) {
@@ -93,13 +115,24 @@ class TelegramController extends Controller
             $message = $update->getMessage();
             $callbackQuery = $update->getCallbackQuery();
             $preCheckoutQuery = $update->getPreCheckoutQuery();
+            $myChatMember = $update->getMyChatMember();
             $chatId = null;
             $text = null;
             $messageId = null;
     
+            Log::info("ChatMember", ['member' => $myChatMember]);
             if ($message) {
                 $chatId = $message->getChat()->getId();
                 $text = $message->getText();
+                $messageId = $message->getMessageId();
+
+                if ($message->getNewChatMembers() || $message->getLeftChatMember()) {
+                    Log::info("Ignoring user join/leave event in chat: {$message->getChat()->getTitle()} ({$message->getChat()->getId()})");
+                    if($message->getNewChatMembers())
+                        DeleteTelegramMessage::dispatch($chatId, $messageId, config('telegram.bot_token')); 
+                    return true;
+                }
+                
                 // Process session if there is any action pending
                 $this->processSession($chatId, $text, $bot, $update, $warehouseBot);
 
@@ -113,7 +146,7 @@ class TelegramController extends Controller
                 $chatId = $callbackQuery->getMessage()->getChat()->getId();
                 $data = $callbackQuery->getData();
                 $messageId = $callbackQuery->getMessage()->getMessageId();
-                $this->handleCallbackQuery($chatId, $data, $messageId, $warehouseBot, $welcomeBot, $user);
+                $this->handleCallbackQuery($chatId, $data, $messageId, $warehouseBot, $welcomeBot, $user, $callbackQuery, $bot);
                 return;
             } elseif ($preCheckoutQuery){
                 $bot->answerPreCheckoutQuery([
@@ -121,6 +154,9 @@ class TelegramController extends Controller
                     'ok' => true
                 ]);
                 Log::info('Pre checkout query', ['preCheckoutQuery' => $preCheckoutQuery]);
+            } elseif ($myChatMember) {  // Handle bot being added to a chat
+                Log::info("ChatMember", ['member' => $myChatMember]);
+                $this->handleMyChatMember($myChatMember, $bot, $user);
             } else {
                 Log::error('Update does not contain a valid message or callback query', ['update' => $update]);
                 return;
@@ -131,7 +167,92 @@ class TelegramController extends Controller
         });
     }
 
-    protected function handleCallbackQuery($chatId, $data, $messageId, WarehouseBotController $warehouseBot, WelcomeBotController $welcomeBot, $user)
+
+    protected function handleMyChatMember($myChatMember, $bot, $user)
+    {
+        $chat = $myChatMember->getChat();
+        $newChatMember = $myChatMember->getNewChatMember();
+        $status = $newChatMember->getStatus();
+
+        // Check if the bot is added as an admin
+        if ($status === 'administrator') {
+            $chatId = $chat->getId();
+            $chatTitle = $chat->getTitle() ?? 'Unknown';
+
+            // Log the event
+            Log::info("Bot added as admin in group: {$chatTitle} ({$chatId})");
+
+            // You might want to store this chat's ID and title in the user's cabinet or another related table
+            $cabinet = $user->cabinets()->firstOrFail();
+           
+            $settings = json_decode($cabinet->settings, true);
+
+            if (!is_array($settings)) {
+                $settings = [];
+            }
+
+            $cabinet->settings = array_merge($settings, ['group_chat_id' => $chatId]);
+
+            // Make sure to encode the settings back into a JSON string before saving
+            $cabinet->settings = json_encode($cabinet->settings);
+            $cabinet->save();
+
+            // Send a welcome message to the chat 
+            $keyboard = new InlineKeyboardMarkup([
+                [['text' => '🍓 Перейти в бота', 'url' => 'https://t.me/wbhelpyfb_bot']] 
+            ]);
+            
+            $message = "✅ Успешно подключено";
+            $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+        } elseif ($status === 'member') {
+            // Handle if the bot is added as a regular member (not an admin)
+            $chatId = $chat->getId();
+            Log::info("Bot added as a regular member in group: {$chat->getTitle()} ({$chatId})");
+            // Send a welcome message to the chat 
+            $keyboard = new InlineKeyboardMarkup([
+                [['text' => '🍓 Перейти в бота', 'url' => 'https://t.me/wbhelpyfb_bot']] 
+            ]);
+            
+            $message = "❌ Назначьте боту права администратора";
+            $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+        } else {
+            $cabinet = $user->cabinets()->firstOrFail();
+
+            // Decode the settings JSON into an associative array
+            $settings = json_decode($cabinet->settings, true);
+
+            if (!is_array($settings)) {
+                $settings = []; // Initialize as an empty array if decoding fails or settings aren't an array
+            }
+
+            // Check if 'group_chat_id' exists and remove it
+            if (isset($settings['group_chat_id'])) {
+                unset($settings['group_chat_id']);
+            }
+
+            // Encode the updated settings back into JSON format before saving
+            $cabinet->settings = json_encode($settings);
+
+            // Save the updated cabinet settings
+            $cabinet->save();
+        }
+        // Handle other status changes as needed
+    }
+
+    protected function getUserCabinetGroupChatId($user){
+        $cabinet = $user->cabinets()->firstOrFail();
+
+        // Decode the settings JSON into an associative array
+        $settings = json_decode($cabinet->settings, true);
+
+        if (!is_array($settings)) {
+            $settings = []; // Initialize as an empty array if decoding fails or settings aren't an array
+        }
+
+        return isset($settings['group_chat_id']);
+    }
+
+    protected function handleCallbackQuery($chatId, $data, $messageId, WarehouseBotController $warehouseBot, WelcomeBotController $welcomeBot, $user, $callbackQuery, $bot)
     {
         if (strpos($data, 'wh_') === 0) {
             $warehouseBot->handleInlineQuery($chatId, $data, $messageId);
@@ -143,6 +264,8 @@ class TelegramController extends Controller
             // Add handling for other types of callback queries here
             $this->handleOtherCallbackQueries($chatId, $data, $messageId);
         }
+
+        $bot->answerCallbackQuery($callbackQuery->getId(), '', null);
         return response()->json(['status' => 'success'], 200);
     }
 
@@ -230,17 +353,29 @@ class TelegramController extends Controller
     protected function setApiKey($chatId, $apiKey, $service, Client $bot)
     {
         $user = Auth::user();
-        $user->apiKeys()->updateOrCreate(
-            ['service' => $service],
+    
+        // Step 1: Create or find a cabinet
+        $cabinetName = 'Кабинет '.$user->name; // You can set this dynamically based on user input or other criteria
+        $cabinet = $user->cabinets()->firstOrCreate(
+            ['name' => $cabinetName], // Find or create a cabinet with the given name
+            ['settings' => json_encode([])] // Default settings can be an empty array or any other default settings
+        );
+    
+        // Step 2: Update or create the API key bound to both user and cabinet
+        $cabinet->apiKeys()->updateOrCreate(
+            ['service' => $service, 'user_id' => $user->id],
             ['api_key' => $apiKey]
         );
     
+        // Step 3: Send a confirmation message to the user
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
         ]);
-        $message = "Ваш API-ключ для службы {$service} сохранен. Теперь вы можете использовать команды Wildberries Bot. 🚀";
+        $message = "Ваш API-ключ для службы {$service} сохранен в кабинете '{$cabinet->name}'. Теперь вы можете использовать команды Wildberries Bot. 🚀";
         $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
-        $this->clearSession($chatId); // Clear the session cache after setting the key
+    
+        // Step 4: Clear the session cache after setting the key
+        $this->clearSession($chatId);
     }
 
     protected function clearSession($chatId){

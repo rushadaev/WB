@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "289cc27fdbed60d347731840e186722c",
+    "content-hash": "0f5160ed7c59414aa0de1a9e43e4bdf9",
     "packages": [
         {
             "name": "brick/math",
@@ -5784,32 +5784,47 @@
         },
         {
             "name": "telegram-bot/api",
-            "version": "v2.5.0",
+            "version": "dev-master",
             "source": {
                 "type": "git",
                 "url": "https://github.com/TelegramBot/Api.git",
-                "reference": "eaae3526223db49a1bad76a2dfa501dc287979cf"
+                "reference": "532db2b840448ced232c3f27f770fabd4ab32870"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/TelegramBot/Api/zipball/eaae3526223db49a1bad76a2dfa501dc287979cf",
-                "reference": "eaae3526223db49a1bad76a2dfa501dc287979cf",
+                "url": "https://api.github.com/repos/TelegramBot/Api/zipball/532db2b840448ced232c3f27f770fabd4ab32870",
+                "reference": "532db2b840448ced232c3f27f770fabd4ab32870",
                 "shasum": ""
             },
             "require": {
                 "ext-curl": "*",
                 "ext-json": "*",
-                "php": ">=5.5.0"
+                "php": ">=8.1"
             },
             "require-dev": {
-                "friendsofphp/php-cs-fixer": "^3.16",
+                "friendsofphp/php-cs-fixer": "~3.28.0",
+                "guzzlehttp/guzzle": "^7.0",
+                "php-http/multipart-stream-builder": "^1.0",
+                "psr/http-client": "^1.0",
+                "psr/http-factory": "^1.0",
+                "symfony/http-client": "^4.3 | ^5.0 | ^6.0",
+                "symfony/mime": "^4.3 | ^5.0 | ^6.0",
                 "symfony/phpunit-bridge": "*",
                 "vimeo/psalm": "^5.9"
             },
+            "suggest": {
+                "guzzlehttp/guzzle": "To use guzzlehttp/guzzle psr implementation",
+                "php-http/multipart-stream-builder": "To use psr/http-client",
+                "psr/http-client": "To use psr/http-client",
+                "psr/http-factory": "To use psr/http-client",
+                "symfony/http-client": "To use symfony/http-client",
+                "symfony/mime": "To use symfony/http-client"
+            },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-master": "2.5-dev"
+                    "dev-master": "2.6-dev"
                 }
             },
             "autoload": {
@@ -5839,9 +5854,9 @@
             ],
             "support": {
                 "issues": "https://github.com/TelegramBot/Api/issues",
-                "source": "https://github.com/TelegramBot/Api/tree/v2.5.0"
+                "source": "https://github.com/TelegramBot/Api/tree/master"
             },
-            "time": "2023-08-09T13:53:12+00:00"
+            "time": "2024-08-14T08:13:36+00:00"
         },
         {
             "name": "tijsverkoyen/css-to-inline-styles",
@@ -8178,6 +8193,7 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "laravel/tinker": 20,
+        "telegram-bot/api": 20,
         "laravel/sail": 20
     },
     "prefer-stable": true,
