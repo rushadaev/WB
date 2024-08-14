@@ -30,6 +30,10 @@ class FetchWarehouseCoefficientsJob implements ShouldQueue
     {
         $apiKey = config('wildberries.supplies_api_key');
         $coefficients = $this->useWildberriesSupplies($apiKey)->getAcceptanceCoefficients();
+
+        // Delete records that have dates before today
+        WarehouseCoefficient::where('date', '<', now()->format('Y-m-d'))->delete();
+        
         // Save them to the database
         foreach ($coefficients['data'] as $coefficient) {
             WarehouseCoefficient::updateOrCreate(
