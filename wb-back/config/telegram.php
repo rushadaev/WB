@@ -8,4 +8,6 @@ return [
     'payment_provider_token_supplies' => env('PAYMENT_PROVIDER_TOKEN_SUPPLIES', 'token'),
     'bot_token_notification' => env('TELEGRAM_BOT_TOKEN_NOTIFICATION', 'your-telegram-bot-token'),
     'notification_group' => env('TELEGRAM_NOTIFICATION_GROUP', 'your-telegram-bot-token'), 
+    'bot_token_test' => env('TELEGRAM_BOT_TOKEN_TEST', 'your-telegram-bot-token'),
+    'channel_test' => env('TELEGRAM_TEST_CHANNEL', 'your-telegram-bot-token'), 
 ];

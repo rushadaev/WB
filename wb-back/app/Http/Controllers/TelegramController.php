@@ -11,11 +11,14 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use App\Traits\UsesWildberries;
 use App\Jobs\DeleteTelegramMessage;
 use App\Models\User;
 
 class TelegramController extends Controller
 {
+    use UsesWildberries;
+
     public function handleWebhook(Request $request)
     {
         $user = Auth::user();
@@ -65,15 +68,18 @@ class TelegramController extends Controller
     {
         $bot->command('ping', function ($message) use ($bot, $user) {
             $chatId = $message->getChat()->getId();
+            Log::info("ChatMember", ['member' => 'GO!']);
             $bot->sendMessage($chatId, 'pong!');
         });
         $bot->command('start', function ($message) use ($welcomeBot, $user, $bot) {
+           
             $chatId = $message->getChat()->getId();
             $text = $message->getText();
+
             $isCabinetGroupChat = $this->getUserCabinetGroupChatId($user);
             if (preg_match('/\/start\s+AddReviews_(\d+)/', $text, $matches) && $chatId != $user->telegram_id) {
                 $cabinetId = $matches[1];
-                $welcomeBot->setupCabinet($cabinetId, $chatId, $bot);
+                $welcomeBot->setupCabinet($cabinetId, $chatId, $bot, $user->telegram_id);
             } elseif($chatId == $user->telegram_id){
                 $welcomeBot->handleStart($chatId);
             } else{
@@ -134,7 +140,7 @@ class TelegramController extends Controller
                 }
                 
                 // Process session if there is any action pending
-                $this->processSession($chatId, $text, $bot, $update, $warehouseBot);
+                $this->processSession($chatId, $text, $bot, $update, $warehouseBot, $messageId, $welcomeBot);
 
                 // Handle successful payment
                 $successfulPayment = $message->getSuccessfulPayment();
@@ -156,7 +162,7 @@ class TelegramController extends Controller
                 Log::info('Pre checkout query', ['preCheckoutQuery' => $preCheckoutQuery]);
             } elseif ($myChatMember) {  // Handle bot being added to a chat
                 Log::info("ChatMember", ['member' => $myChatMember]);
-                $this->handleMyChatMember($myChatMember, $bot, $user);
+                $this->handleMyChatMember($myChatMember, $bot, $user, $welcomeBot);
             } else {
                 Log::error('Update does not contain a valid message or callback query', ['update' => $update]);
                 return;
@@ -168,8 +174,7 @@ class TelegramController extends Controller
     }
 
 
-    protected function handleMyChatMember($myChatMember, $bot, $user)
-    {
+    protected function handleMyChatMember($myChatMember, $bot, $user, $welcomeBot){
         $chat = $myChatMember->getChat();
         $newChatMember = $myChatMember->getNewChatMember();
         $status = $newChatMember->getStatus();
@@ -184,17 +189,21 @@ class TelegramController extends Controller
 
             // You might want to store this chat's ID and title in the user's cabinet or another related table
             $cabinet = $user->cabinets()->firstOrFail();
-           
-            $settings = json_decode($cabinet->settings, true);
 
+            // Since the settings are automatically cast to an array, you don't need to decode them manually
+            $settings = $cabinet->settings;
+            
             if (!is_array($settings)) {
                 $settings = [];
             }
-
-            $cabinet->settings = array_merge($settings, ['group_chat_id' => $chatId]);
-
-            // Make sure to encode the settings back into a JSON string before saving
-            $cabinet->settings = json_encode($cabinet->settings);
+            
+            // Merge the existing settings with the new ones
+            $cabinet->settings = array_merge($settings, [
+                'group_chat_id' => $chatId,
+                'enabled' => true,
+            ]);
+            
+            // No need to manually encode settings; Laravel will handle it
             $cabinet->save();
 
             // Send a welcome message to the chat 
@@ -204,6 +213,15 @@ class TelegramController extends Controller
             
             $message = "✅ Успешно подключено";
             $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+            $cachedData = Cache::get("add_key_message_id_{$user->telegram_id}");
+
+            if ($cachedData) {
+                $messageId = $cachedData['messageId'] ?? null;
+                if($messageId){
+                    $welcomeBot->handleManageReviews($user->telegram_id, $cabinet->id, $messageId);
+                    Cache::forget("add_key_message_id_{$user->telegram_id}");
+                }
+            }
         } elseif ($status === 'member') {
             // Handle if the bot is added as a regular member (not an admin)
             $chatId = $chat->getId();
@@ -218,37 +236,34 @@ class TelegramController extends Controller
         } else {
             $cabinet = $user->cabinets()->firstOrFail();
 
-            // Decode the settings JSON into an associative array
-            $settings = json_decode($cabinet->settings, true);
-
-            if (!is_array($settings)) {
-                $settings = []; // Initialize as an empty array if decoding fails or settings aren't an array
-            }
-
+            // The settings attribute is already an array due to casting, so no need to manually decode it
+            $settings = $cabinet->settings;
+            
             // Check if 'group_chat_id' exists and remove it
             if (isset($settings['group_chat_id'])) {
                 unset($settings['group_chat_id']);
             }
-
-            // Encode the updated settings back into JSON format before saving
-            $cabinet->settings = json_encode($settings);
-
-            // Save the updated cabinet settings
+            
+            // Assign the updated settings array back to the model
+            $cabinet->settings = $settings;
+            
+            // No need to manually encode settings; Laravel will handle it
             $cabinet->save();
         }
         // Handle other status changes as needed
     }
 
-    protected function getUserCabinetGroupChatId($user){
-        $cabinet = $user->cabinets()->firstOrFail();
-
-        // Decode the settings JSON into an associative array
-        $settings = json_decode($cabinet->settings, true);
-
-        if (!is_array($settings)) {
-            $settings = []; // Initialize as an empty array if decoding fails or settings aren't an array
+    protected function getUserCabinetGroupChatId($user)
+    {
+        $cabinet = $user->cabinets()->first();
+    
+        if (!$cabinet) {
+            return false; // Return false if no cabinet exists
         }
-
+    
+        // The settings attribute is automatically cast to an array, so no need to decode it manually
+        $settings = $cabinet->settings;
+    
         return isset($settings['group_chat_id']);
     }
 
@@ -269,21 +284,35 @@ class TelegramController extends Controller
         return response()->json(['status' => 'success'], 200);
     }
 
-    protected function processSession($chatId, $text, Client $bot, $update, $warehouseBot)
+    protected function processSession($chatId, $text, Client $bot, $update, $warehouseBot, $messageId, $welcomeBot)
     {
         $session = Cache::get("session_{$chatId}");
     
         if ($session) {
             if (isset($session['action'])) {
                 switch ($session['action']) {
-                    case 'collect_wb_suppliers_api_key':
-                        $this->setApiKey($chatId, $text, 'supplies', $bot);
-                        break;
                     case 'collect_wb_feedback_api_key':
-                        $this->setApiKey($chatId, $text, 'feedback', $bot);
+                        //Delete add key prompt message
+                        $messageIdOriginal = $session['messageId'] ?? null; 
+                        if($messageIdOriginal)
+                            DeleteTelegramMessage::dispatch($chatId, $messageId, config('telegram.bot_token'));
+
+                        $this->setApiKey($chatId, $text, 'feedback', $bot, $messageId);
                         break;
                     case 'collect_notification_expiration_date':
                         $warehouseBot->handleCustomDateInput($chatId, $text);
+                        break;
+                    case 'collect_star_range_autosend':
+                        $cabinetId = $session['cabinetId'] ?? null;
+                        $messageIdOriginal = $session['messageId'] ?? null; 
+                        if($cabinetId && $messageId)
+                            $welcomeBot->handleCollectStarRangeAutosend($chatId, $text, $cabinetId, $messageIdOriginal, $messageId);
+                        break;
+                    case 'collect_star_range_confirm':
+                        $cabinetId = $session['cabinetId'] ?? null;
+                        $messageIdOriginal = $session['messageId'] ?? null; 
+                        if($cabinetId && $messageId)
+                            $welcomeBot->handleCollectStarRangeConfirm($chatId, $text, $cabinetId, $messageIdOriginal, $messageId);
                         break;
                     default:
                         Log::warning('Unknown action in session', ['action' => $session['action']]);
@@ -350,12 +379,13 @@ class TelegramController extends Controller
         );
     }
 
-    protected function setApiKey($chatId, $apiKey, $service, Client $bot)
+    protected function setApiKey($chatId, $apiKey, $service, Client $bot, $messageId)
     {
         $user = Auth::user();
     
+        $cabinetName = $this->checkApiKey($apiKey, $chatId, $bot) ?? $user->id;
         // Step 1: Create or find a cabinet
-        $cabinetName = 'Кабинет '.$user->name; // You can set this dynamically based on user input or other criteria
+        // $cabinetName = 'Кабинет '.$user->name; // You can set this dynamically based on user input or other criteria
         $cabinet = $user->cabinets()->firstOrCreate(
             ['name' => $cabinetName], // Find or create a cabinet with the given name
             ['settings' => json_encode([])] // Default settings can be an empty array or any other default settings
@@ -373,9 +403,32 @@ class TelegramController extends Controller
         ]);
         $message = "Ваш API-ключ для службы {$service} сохранен в кабинете '{$cabinet->name}'. Теперь вы можете использовать команды Wildberries Bot. 🚀";
         $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
-    
+        //Удалить ключ из сообщения для безопасности
+        DeleteTelegramMessage::dispatch($chatId, $messageId, config('telegram.bot_token')); 
         // Step 4: Clear the session cache after setting the key
         $this->clearSession($chatId);
+    }
+
+    protected function checkApiKey($apiKey, $chatId, Client $bot)
+    {
+        try {
+            // Assuming $user is the currently authenticated user
+            $user = Auth::user();
+            $cabinetName = $this->useWildberries($apiKey, $user)->checkFeedbackKey();
+            return $cabinetName;
+        } catch (\Exception $e) {
+            // Send an error message to the user via the bot
+            $message = "Ошибка при проверке API-ключа: " . $e->getMessage();
+            $keyboard = new InlineKeyboardMarkup([
+                [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']]
+            ]);
+            $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+            
+            // Optionally, clear the session cache if needed
+            $this->clearSession($chatId);
+
+            return; // Stop further execution if there's an error
+        }
     }
 
     protected function clearSession($chatId){

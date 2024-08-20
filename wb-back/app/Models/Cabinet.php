@@ -28,4 +28,27 @@ class Cabinet extends Model
     {
         return $this->hasMany(APIKey::class);
     }
+
+    public function getFeedbackApiKey()
+    {
+        $apiKey = $this->apiKeys()->where('service', 'feedback')->first();
+        return $apiKey ? $apiKey->api_key : null;
+    }
+
+    public function feedbacks()
+    {
+        return $this->hasMany(Feedback::class);
+    }
+
+    // Accessor for group_chat_id
+    public function getGroupChatIdAttribute()
+    {
+        return $this->settings ?? null;
+    }
+
+    // Accessor for enabled
+    public function getEnabledAttribute()
+    {
+        return $this->settings['enabled'] ?? false;
+    }
 }

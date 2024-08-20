@@ -31,12 +31,6 @@ class SendTelegramMessage implements ShouldQueue
      */
     public function handle(): void
     {
-        // $questionKeyboard = new InlineKeyboardMarkup([
-        //     [['text' => '✅Принять ответ', 'callback_data' => "accept_answer"]],
-        //     [['text' => '✍🏻Изменить ответ', 'callback_data' => "change_answer"]],
-        //     [['text' => '💩Удалить вопрос', 'callback_data' => "delete_question"]],
-        // ]);
-
         $botToken = $this->botToken ?? config('telegram.bot_token');
         $telegram = $this->useTelegram();
         $telegram->setBotToken($botToken);

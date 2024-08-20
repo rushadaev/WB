@@ -10,7 +10,7 @@ Route::get('/', function () {
 });
 
 Route::middleware(['telegram.auth'])->group(function () {
-    Route::post('/webhook/telegram/', [TelegramController::class, 'handleWebhook']);
+    Route::post('/webhook/telegram/feedback', [TelegramController::class, 'handleWebhook']);
     Route::post('/webhook/telegram/supplies', [TelegramControllerSupplies::class, 'handleWebhookSupplies']);
 });
 

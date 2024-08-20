@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use TelegramBot\Api\Client;
 use App\Models\User;
+use App\Http\Controllers\FeedbackAutoSendController;
+use App\Http\Controllers\FeedbackConfirmController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use TelegramBot\Api\Types\ReplyKeyboardMarkup;
@@ -21,23 +23,21 @@ use Illuminate\Support\Facades\DB;
 class WelcomeBotController extends Controller
 {
     use UsesWildberriesSupplies;
-    protected $bot;
-
-    public function __construct(Client $bot)
-    {
-        $this->bot = $bot;
-    }
+    
+    public function __construct(
+        protected Client $bot,
+    ) {}
     
     protected function sendOrUpdateMessage($chatId, $messageId = null, $message, $keyboard = null, $parse_mode = null){
         if ($messageId) {
             try {
-                $this->bot->editMessageText($chatId, $messageId, $message, $parse_mode, false, $keyboard);
+                return $this->bot->editMessageText($chatId, $messageId, $message, $parse_mode, false, $keyboard);
             } catch (\Exception $e) {
                 // If editing fails, send a new message
-                $this->bot->sendMessage($chatId, $message, $parse_mode, false, null, $keyboard);
+                return $this->bot->sendMessage($chatId, $message, $parse_mode, false, null, $keyboard);
             }
         } else {
-            $this->bot->sendMessage($chatId, $message, $parse_mode, false, null, $keyboard);
+            return $this->bot->sendMessage($chatId, $message, $parse_mode, false, null, $keyboard);
         }
     }
 
@@ -181,8 +181,8 @@ class WelcomeBotController extends Controller
 
 4️⃣ Нажмите [Создать токен] и отправте его в этот чат.";
         if (!Gate::forUser($user)->allows('accessService', 'feedback')) {
-            Cache::put("session_{$user->telegram_id}", ['action' => 'collect_wb_feedback_api_key'], 300); // Cache for 5 minutes
-            $this->sendOrUpdateMessage($chatId, $messageId, $message, null);
+            $updatedMessage = $this->sendOrUpdateMessage($chatId, $messageId, $message, null);
+            Cache::put("session_{$user->telegram_id}", ['action' => 'collect_wb_feedback_api_key', 'messageId' => $updatedMessage->getMessageId()], 300); // Cache for 5 minutes
             return false;
         }
         $message = '✅ У вас уже имеется ключ отзывы WB';
@@ -216,38 +216,80 @@ class WelcomeBotController extends Controller
     
     public function handleInlineQuery($chatId, $data, $messageId = null)
     {
-        if ($data === 'welcome_start') {
-            $this->handleStart($chatId, $messageId);
-        } elseif ($data === 'welcome_advertisement') {
-            $this->handleAdvertisement($chatId, $messageId);
-        } elseif ($data === 'welcome_cabinet') {
-            $this->handleCabinet($chatId, $messageId);
-        } elseif ($data === 'welcome_pay') {
-            $this->handlePay($chatId, $messageId);
-        } elseif ($data === 'welcome_cabinet_list') {
-            $this->handleCabinetList($chatId, $messageId);
-        } elseif ($data === 'welcome_add_key') {
-            $this->handleAddKey($chatId, $messageId);
-        } elseif ($data === 'welcome_setup_cabinet'){
-            $this->handleManageCabinet($chatId, $messageId);
-        } elseif (strpos($data, 'welcome_manage_reviews_') === 0) {
-            $cabinetId = str_replace('welcome_manage_reviews_', '', $data);
-            $this->handleManageReviews($chatId, $cabinetId, $messageId);
-        } elseif (strpos($data, 'welcome_manage_questions_') === 0) {
-            $cabinetId = str_replace('welcome_manage_questions_', '', $data);
-            $this->handleManageQuestions($chatId, $cabinetId, $messageId);
-        } elseif (strpos($data, 'welcome_delete_cabinet_') === 0) {
-            $cabinetId = str_replace('welcome_delete_cabinet_', '', $data);
-            $this->handleDeleteCabinet($chatId, $cabinetId, $messageId);
-        } else {
-            return response()->json(['status' => 'success'], 200);
+        $mapping = [
+            'welcome_start' => 'handleStart',
+            'welcome_advertisement' => 'handleAdvertisement',
+            'welcome_cabinet' => 'handleCabinet',
+            'welcome_pay' => 'handlePay',
+            'welcome_cabinet_list' => 'handleCabinetList',
+            'welcome_add_key' => 'handleAddKey',
+            'welcome_setup_cabinet' => 'handleManageCabinet',
+        ];
+        switch (true) {
+            case isset($mapping[$data]):
+                $this->{$mapping[$data]}($chatId, $messageId);
+                break;
+        
+            case strpos($data, 'welcome_manage_reviews_') === 0:
+                $cabinetId = str_replace('welcome_manage_reviews_', '', $data);
+                $this->handleManageReviews($chatId, $cabinetId, $messageId);
+                break;
+        
+            case strpos($data, 'welcome_manage_questions_') === 0:
+                $cabinetId = str_replace('welcome_manage_questions_', '', $data);
+                $this->handleManageQuestions($chatId, $cabinetId, $messageId);
+                break;
+        
+            case strpos($data, 'welcome_delete_cabinet_') === 0:
+                $cabinetId = str_replace('welcome_delete_cabinet_', '', $data);
+                $this->handleDeleteCabinet($chatId, $cabinetId, $messageId);
+                break;
+
+            case strpos($data, 'welcome_feedback_settings_autosend_') === 0:
+                $cabinetId = preg_replace('/^welcome_feedback_settings_autosend_/', '', $data);
+                $cabinetId = (int) filter_var($cabinetId, FILTER_SANITIZE_NUMBER_INT);
+                if (strpos($data, 'setup_') !== false) {
+                    $this->handleAutosendSetup($chatId, $cabinetId, 'setup', $messageId);
+                } elseif (strpos($data, 'toggle_') !== false) {
+                    $this->handleAutosendToggle($chatId, $cabinetId, 'toggle', $messageId);
+                } elseif (strpos($data, 'send_if_no_text_') !== false) {
+                    $this->handleAutosendToggleNoText($chatId, $cabinetId, 'toggle_no_text', $messageId);
+                } elseif (strpos($data, 'send_if_with_text_') !== false) {
+                    $this->handleAutosendToggleWithText($chatId, $cabinetId, 'toggle_with_text', $messageId);
+                }
+                break;
+
+            case strpos($data, 'welcome_feedback_settings_confirm_') === 0:
+                $cabinetId = preg_replace('/^welcome_feedback_settings_confirm_/', '', $data);
+                $cabinetId = (int) filter_var($cabinetId, FILTER_SANITIZE_NUMBER_INT);
+                if (strpos($data, 'setup_') !== false) {
+                    $this->handleConfirmSetup($chatId, $cabinetId, 'setup', $messageId);
+                } elseif (strpos($data, 'toggle_') !== false) {
+                    $this->handleConfirmToggle($chatId, $cabinetId, 'toggle', $messageId);
+                } elseif (strpos($data, 'send_if_no_text_') !== false) {
+                    $this->handleConfirmToggleNoText($chatId, $cabinetId, 'toggle_no_text', $messageId);
+                } elseif (strpos($data, 'send_if_with_text_') !== false) {
+                    $this->handleConfirmToggleWithText($chatId, $cabinetId, 'toggle_with_text', $messageId);
+                }
+                break;
+        
+            case strpos($data, 'welcome_feedback_settings_confirm_') === 0:
+            case strpos($data, 'welcome_feedback_settings_recommend_') === 0:
+            case strpos($data, 'welcome_feedback_settings_enabled_') === 0:
+                $cabinetId = str_replace(['welcome_feedback_settings_confirm_', 'welcome_feedback_settings_recommend_', 'welcome_feedback_settings_enabled_'], '', $data);
+                $setting = str_contains($data, 'confirm') ? 'confirm_before_sending' : (str_contains($data, 'recommend') ? 'recommend_products' : 'enabled');
+                $this->handleToggleSetup($chatId, $cabinetId, $setting, $messageId);
+                break;
+        
+            default:
+                return response()->json(['status' => 'success'], 200);
         }
     
         return response()->json(['status' => 'success'], 200);
     }
 
     //Настройки отзывов
-    protected function handleManageReviews($chatId, $cabinetId, $messageId = null)
+    public function handleManageReviews($chatId, $cabinetId, $messageId = null)
     {
         // Retrieve the cabinet
         $user = Auth::user();
@@ -256,25 +298,56 @@ class WelcomeBotController extends Controller
         // Generate a unique command for adding the bot to the chat
         $uniqueCommand = 'AddReviews_' . $cabinetId;
 
-        // Instructions message
-        $message = "Чтобы включить автоматические ответы, нужно подключить чат.
-1️⃣ Создайте чат
-2️⃣ Нажмите на кнопку снизу и выберите нужный чат
-3️⃣ Если бот просит ввести команду, отправьте в чат <code>/start $uniqueCommand</code> (нажмите для копирования)";
+        // Decode the settings JSON into an associative array
+        $settings = $cabinet->settings;
 
-        $botUsername = 'wbhelpyfb_bot';
-        $link = "https://t.me/{$botUsername}?startgroup=true";
-        // Inline keyboard with a button to switch inline chat, allowing group chat selection
-        $keyboard = new InlineKeyboardMarkup([
-            [[
-                'text' => '+ Добавить чат',
-                'url' => $link 
-            ]],
-            [['text' => '🔙 Назад', 'callback_data' => 'welcome_setup_cabinet']]
-        ]);
+        // Check if 'group_chat_id' exists and show relevant options
+        if (isset($settings['group_chat_id'])) {
+            $message = "⚙️ Настройка отзывов для {$cabinet->name}\n\n";
+            $message .= "- Подтверждение перед отправкой: " . (($settings['confirm_before_sending'] ?? false) ? '<code>Включено</code>' : '<code>Отключено</code>') . "\n";
+            $message .= "- Автоматическая отправка: " . (($settings['autosend']['enabled'] ?? false) ? '<code>Включено</code>' : '<code>Отключено</code>') . "\n";
+            $message .= "- Рекомендация товаров: " . (($settings['recommend_products'] ?? false) ? '<code>Включено</code>' : '<code>Отключено</code>') . "\n\n";
+
+            $message .= "- Работа бота: " . (($settings['enabled'] ?? false) ? '<code>Включена</code>' : '<code>Отключена</code>') . "\n";
+
+            $keyboard = [];
+
+            if ($settings['enabled'] ?? false) {
+                // If the bot is enabled, show all options
+                $keyboard = new InlineKeyboardMarkup([
+                    [['text' => ($settings['confirm_before_sending'] ?? false) ? '✅ Подтверждение включено' : '❌ Подтверждение отключено', 'callback_data' => "welcome_feedback_settings_confirm_setup_$cabinet->id"]],
+                    [['text' => ($settings['autosend']['enabled'] ?? false) ? '✅ Настройка автоотправки' : '❌ Настройка автоотправки', 'callback_data' => "welcome_feedback_settings_autosend_setup_$cabinet->id"]],
+                    [['text' => ($settings['recommend_products'] ?? false) ? '✅ Рекомендации включены' : '❌ Рекомендации отключены', 'callback_data' => "welcome_feedback_settings_recommend_$cabinet->id"]],
+                    [['text' => ($settings['enabled'] ?? false) ? '✅ Бот включен' : '❌ Бот выключен', 'callback_data' => "welcome_feedback_settings_enabled_$cabinet->id"]],
+                    [['text' => '🔙 Назад', 'callback_data' => 'welcome_setup_cabinet']]
+                ]);
+            } else {
+                // If the bot is disabled, only show the "Enable Bot" and "Back" options
+                $keyboard = new InlineKeyboardMarkup([
+                    [['text' => '❌ Включить бота', 'callback_data' => "welcome_feedback_settings_enabled_$cabinet->id"]],
+                    [['text' => '🔙 Назад', 'callback_data' => 'welcome_setup_cabinet']]
+                ]);
+            }
+        } else {
+            $message = "Чтобы включить автоматические ответы, нужно подключить чат.
+    1️⃣ Создайте чат
+    2️⃣ Нажмите на кнопку снизу и выберите нужный чат
+    3️⃣ Если бот просит ввести команду, отправьте в чат <code>/start $uniqueCommand</code> (нажмите для копирования)";
+
+            $botUsername = 'wbhelpyfb_bot';
+            $link = "https://t.me/{$botUsername}?startgroup=true";
+            $keyboard = new InlineKeyboardMarkup([
+                [[
+                    'text' => '+ Добавить чат',
+                    'url' => $link 
+                ]],
+                [['text' => '🔙 Назад', 'callback_data' => 'welcome_setup_cabinet']]
+            ]);
+        }
 
         // Send or update the message with the instructions and options
-        $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
+        $updatedMessage = $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
+        Cache::put("add_key_message_id_{$user->telegram_id}", ['action' => 'add_key', 'messageId' => $updatedMessage->getMessageId()], 300); // Cache for 5 minutes
     }
 
     protected function handleManageQuestions($chatId, $cabinetId, $messageId = null)
@@ -298,6 +371,88 @@ class WelcomeBotController extends Controller
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
     }
 
+    //Setup autosend
+    public function handleAutosendSetup($chatId, $cabinetId, $settingName, $messageId)
+    {
+        $feedbackAutoSendController = new FeedbackAutoSendController($this->bot);
+        $feedbackAutoSendController->setupAutoSend($chatId, $cabinetId, $messageId);
+    }
+
+    protected function handleAutosendToggle($chatId, $cabinetId, $settingName, $messageId)
+    {
+        $feedbackAutoSendController = new FeedbackAutoSendController($this->bot);
+        $feedbackAutoSendController->toggleAutoSend($chatId, $cabinetId, $messageId);
+    }
+
+    protected function handleAutosendToggleNoText($chatId, $cabinetId, $settingName, $messageId)
+    {
+        $feedbackAutoSendController = new FeedbackAutoSendController($this->bot);
+        $feedbackAutoSendController->toggleSendIfNoText($chatId, $cabinetId, $messageId);
+    }
+
+    protected function handleAutosendToggleWithText($chatId, $cabinetId, $settingName, $messageId)
+    {
+        $feedbackAutoSendController = new FeedbackAutoSendController($this->bot);
+        $feedbackAutoSendController->toggleSendIfWithText($chatId, $cabinetId, $messageId);
+    }
+
+    public function handleCollectStarRangeAutosend($chatId, $text, $cabinetId, $messageIdOriginal, $messageId){
+        $feedbackAutoSendController = new FeedbackAutoSendController($this->bot);
+        $feedbackAutoSendController->setStarRangeAutosend($chatId, $cabinetId, $text, $messageIdOriginal, $messageId); 
+    }
+
+    //Setup Confirm
+    public function handleConfirmSetup($chatId, $cabinetId, $settingName, $messageId)
+    {
+        $feedbackConfirmController = new FeedbackConfirmController($this->bot);
+        $feedbackConfirmController->setupConfirm($chatId, $cabinetId, $messageId);
+    }
+
+    protected function handleConfirmToggle($chatId, $cabinetId, $settingName, $messageId)
+    {
+        $feedbackConfirmController = new FeedbackConfirmController($this->bot);
+        $feedbackConfirmController->toggleConfirm($chatId, $cabinetId, $messageId);
+    }
+
+    protected function handleConfirmToggleNoText($chatId, $cabinetId, $settingName, $messageId)
+    {
+        $feedbackConfirmController = new FeedbackConfirmController($this->bot);
+        $feedbackConfirmController->toggleSendIfNoText($chatId, $cabinetId, $messageId);
+    }
+
+    protected function handleConfirmToggleWithText($chatId, $cabinetId, $settingName, $messageId)
+    {
+        $feedbackConfirmController = new FeedbackConfirmController($this->bot);
+        $feedbackConfirmController->toggleSendIfWithText($chatId, $cabinetId, $messageId);
+    }
+
+    public function handleCollectStarRangeConfirm($chatId, $text, $cabinetId, $messageIdOriginal, $messageId){
+        $feedbackConfirmController = new FeedbackConfirmController($this->bot);
+        $feedbackConfirmController->setStarRangeConfirm($chatId, $cabinetId, $text, $messageIdOriginal, $messageId); 
+    }
+
+    protected function handleToggleSetup($chatId, $cabinetId, $settingName, $messageId)
+    {
+        $user = Auth::user();
+        $cabinet = $user->cabinets()->findOrFail($cabinetId);
+
+        Log::info("Cabinet setup in progress: {$chatId}, cabinet ID: {$cabinetId}, settingName: {$settingName}");
+
+        // Since the settings attribute is automatically cast to an array, no need to decode it manually
+        $settings = $cabinet->settings;
+
+        // Toggle the specified setting
+        $settings[$settingName] = !($settings[$settingName] ?? false);
+
+        // Assign the updated settings array back to the model
+        $cabinet->settings = $settings;
+
+        // No need to manually encode settings; Laravel will handle it
+        $cabinet->save();
+
+        // Optionally, refresh the manage reviews menu
+        $this->handleManageReviews($chatId, $cabinetId, $messageId);
+    }
 
     protected function handleDeleteCabinet($chatId, $cabinetId, $messageId = null)
     {
@@ -319,25 +474,24 @@ class WelcomeBotController extends Controller
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
     }
 
-    public function setupCabinet($cabinetId, $chatId, $bot)
+    public function setupCabinet($cabinetId, $chatId, $bot, $userTelegramId)
     {
         // Fetch the cabinet by ID
         $cabinet = Cabinet::findOrFail($cabinetId);
 
-        // Decode the settings JSON into an associative array
-        $settings = json_decode($cabinet->settings, true);
+        // The settings attribute is automatically cast to an array, so no need to decode it manually
+        $settings = $cabinet->settings;
 
-        if (!is_array($settings)) {
-            $settings = []; // Initialize as an empty array if decoding fails or settings aren't an array
+        if (!is_array($settings) || empty($settings)) {
+            $settings = []; // Initialize as an empty array only if not already an array or if it's empty
         }
 
         // Merge the existing settings with the new group_chat_id
-        $settings = array_merge($settings, ['group_chat_id' => $chatId]);
+        $cabinet->settings = array_merge($settings, [
+            'group_chat_id' => $chatId,
+            'enabled' => true,
+        ]);
 
-        // Encode the updated settings back into JSON format before saving
-        $cabinet->settings = json_encode($settings);
-
-        // Save the updated cabinet settings
         $cabinet->save();
 
         // Log the event
@@ -350,5 +504,16 @@ class WelcomeBotController extends Controller
 
         $message = "✅ Успешно подключено";
         $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+
+
+        $cachedData = Cache::get("add_key_message_id_{$userTelegramId}");
+
+        if ($cachedData) {
+            $messageId = $cachedData['messageId'] ?? null;
+            if($messageId){
+                $this->handleManageReviews($userTelegramId, $cabinetId, $messageId);
+                Cache::forget("add_key_message_id_{$userTelegramId}");
+            }
+        }
     }
 }

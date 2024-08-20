@@ -20,7 +20,8 @@ class TelegramInspire implements ShouldQueue
     public function __construct(
         public string $telegramId,
         public string $message,
-        public string $parse_mode
+        public string $parse_mode,
+        public string $botToken,
     ) {}
 
     /**
@@ -28,7 +29,9 @@ class TelegramInspire implements ShouldQueue
      */
     public function handle(): void
     {
+        $token = $this->botToken;
         $telegram = $this->useTelegram();
+        $telegram->setBotToken($token);
         $telegram->sendMessage($this->telegramId, $this->message, $this->parse_mode, false, null, null);
     }
 }

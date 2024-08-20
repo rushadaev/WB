@@ -6,6 +6,9 @@ use App\Jobs\TelegramInspire;
 use App\Jobs\CheckCoefficientChanges;
 use App\Jobs\FetchWarehouseCoefficientsJob;
 use App\Jobs\CheckSubscriptionExpiration;
+use App\Jobs\SendFeedbacksToTelegramJob;
+use App\Jobs\FetchFeedbacksJob;
+use App\Models\Cabinet;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -38,8 +41,10 @@ Artisan::command('inspire', function () {
     // Display the formatted message in the console
     $this->comment($message);
 
+    $token = config('telegram.bot_token_test');
+    $channel = config('telegram.channel_test');
     // Dispatch the job to send the message to Telegram
-    TelegramInspire::dispatch('782919745', $message, 'MarkdownV2');
+    TelegramInspire::dispatch($channel, $message, 'MarkdownV2', $token);
 })->purpose('Display an inspiring quote')->hourly();
 
 Artisan::command('warehouse_bot', function () {
@@ -51,9 +56,24 @@ Artisan::command('warehouse_bot', function () {
 
 Artisan::command('warehouse_bot_fetch_coefficients', function () {
     FetchWarehouseCoefficientsJob::dispatch();
-})->purpose('Fetch updated coefficients from WB')->everyFifteenSeconds();
+})->purpose('Fetch updated coefficients from WB')->everyMinute();
 
 
 Artisan::command('warehouse_bot_check_subscription_expiration', function () {
     CheckSubscriptionExpiration::dispatch();
 })->purpose('Check subscription expiration')->hourly();
+
+
+Artisan::command('feedback_fetch', function () {
+    $cabinets = Cabinet::all();
+    foreach ($cabinets as $cabinet) {
+        FetchFeedbacksJob::dispatch($cabinet->id);
+    }
+})->purpose('Feedback fetch')->hourly();
+
+Artisan::command('feedback_send', function () {
+    $cabinets = Cabinet::all();
+    foreach ($cabinets as $cabinet) {
+        SendFeedbacksToTelegramJob::dispatch($cabinet->id);
+    }
+})->purpose('Feedback fetch')->hourly();
