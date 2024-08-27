@@ -112,7 +112,7 @@ class WildberriesSuppliesService
                 return [
                     'data' => null,
                     'error' => true,
-                    'errorText' => 'No coefficients found for the specified warehouse',
+                    'errorText' => 'No coefficients found for the specified warehouse '.$warehouseId,
                 ];
             }
 

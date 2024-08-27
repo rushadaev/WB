@@ -67,6 +67,11 @@ class TelegramControllerSupplies extends Controller
             $bot->sendMessage($chatId, 'pong!');
         });
 
+        $bot->command('searches', function ($message) use ($warehouseBot, $user) {
+            $chatId = $message->getChat()->getId();
+            $warehouseBot->handleSearches($chatId);
+        });
+
         $bot->command('start', function ($message) use ($warehouseBot, $user) {
             $chatId = $message->getChat()->getId();
             $warehouseBot->handleStart($chatId);
@@ -185,19 +190,19 @@ class TelegramControllerSupplies extends Controller
     {
         switch ($data) {
             case 'pay_1_week':
-                $this->sendInvoice($chatId, '1 неделя', 'Покупка 1 неделя', 'pay_1_week', 400);
+                $this->sendInvoice($chatId, '1 неделя', 'Покупка 1 неделя', 'pay_1_week', 300);
                 break;
             case 'pay_1_month':
-                $this->sendInvoice($chatId, '1 месяц', 'Покупка 1 месяц', 'pay_1_month', 1000);
+                $this->sendInvoice($chatId, '1 месяц', 'Покупка 1 месяц', 'pay_1_month', 500);
                 break;
             case 'pay_3_months':
-                $this->sendInvoice($chatId, '3 месяца', 'Покупка 3 месяца', 'pay_3_months', 2500);
+                $this->sendInvoice($chatId, '3 месяца', 'Покупка 3 месяца', 'pay_3_months', 1000);
                 break;
             case 'pay_6_months':
-                $this->sendInvoice($chatId, '6 месяцев', 'Покупка 6 месяцев', 'pay_6_months', 5000);
+                $this->sendInvoice($chatId, '6 месяцев', 'Покупка 6 месяцев', 'pay_6_months', 4000);
                 break;
             case 'pay_forever':
-                $this->sendInvoice($chatId, 'навсегда', 'Покупка навсегда', 'pay_forever', 10000);
+                $this->sendInvoice($chatId, 'навсегда', 'Покупка навсегда', 'pay_forever', 5000);
                 break;
         }
     }

@@ -1,5 +1,4 @@
 version: "3.9"
-
 services:
   wb-app:
     build:
@@ -46,16 +45,6 @@ services:
     networks:
       - app-network
 
-  redis:
-    image: redis:alpine
-    container_name: redis-wb-app
-    restart: unless-stopped
-    tty: true
-    ports:
-      - "6379:6379"
-    networks:
-      - app-network
-
   scheduler:
     build:
       context: .
@@ -67,7 +56,6 @@ services:
     depends_on:
       - wb-app
       - db
-      - redis
     networks:
       - app-network
     env_file:
@@ -78,18 +66,17 @@ services:
       /usr/local/bin/cron-schedule.sh"
     restart: always
 
-  horizon:
+  queue-worker:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: horizon
+    container_name: queue-worker
     user: "33:33" # Ensure container runs as www-data user
     volumes:
       - ./wb-back:/var/www/wb-back
     depends_on:
       - wb-app
       - db
-      - redis
     networks:
       - app-network
     env_file:
@@ -97,7 +84,7 @@ services:
     command: >
       sh -c "
       sleep 10 &&
-      php /var/www/wb-back/artisan horizon"
+      php /var/www/wb-back/artisan queue:work --tries=3 --max-time=3600"
     restart: always
 
 networks:

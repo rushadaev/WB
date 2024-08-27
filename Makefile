@@ -77,7 +77,7 @@ delete-failed-job:
 
 # Flush all failed jobs
 flush-failed-jobs:
-	docker-compose exec wb-app php artisan queue:flush
+	docker-compose exec horizon php artisan horizon:forget --all
 
 # Restart queue worker
 restart-queue-worker:

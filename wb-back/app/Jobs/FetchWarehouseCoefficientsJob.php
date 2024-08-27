@@ -9,6 +9,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use App\Traits\UsesWildberriesSupplies;
 use App\Models\WarehouseCoefficient;
+use App\Models\Notification;
+use Carbon\Carbon;
 
 class FetchWarehouseCoefficientsJob implements ShouldQueue
 {
@@ -29,18 +31,28 @@ class FetchWarehouseCoefficientsJob implements ShouldQueue
     public function handle(): void
     {
         $apiKey = config('wildberries.supplies_api_key');
-        $coefficients = $this->useWildberriesSupplies($apiKey)->getAcceptanceCoefficients();
+        $warehouseIds = Notification::where('status', 'started')->get()->pluck('settings')->pluck('warehouseId')->implode(',') ?? null;
+        $coefficients = $this->useWildberriesSupplies($apiKey)->getAcceptanceCoefficients($warehouseIds);
 
+        if (!isset($coefficients['data']) || !is_array($coefficients['data'])) {
+            // Log an error or handle the situation as needed
+            Log::error('Invalid coefficients data received', ['coefficients' => $coefficients]);
+            return;
+        }
+        
         // Delete records that have dates before today
         WarehouseCoefficient::where('date', '<', now()->format('Y-m-d'))->delete();
         
         // Save them to the database
         foreach ($coefficients['data'] as $coefficient) {
+            // Convert the API response date to a compatible format
+            $convertedDate = Carbon::parse($coefficient['date'])->format('Y-m-d H:i:s');
+            
             WarehouseCoefficient::updateOrCreate(
                 [
                     'warehouse_id' => $coefficient['warehouseID'],
                     'box_type_id' => $coefficient['boxTypeID'] ?? null,
-                    'date' => $coefficient['date'],
+                    'date' => $convertedDate,
                 ],
                 [
                     'warehouse_name' => $coefficient['warehouseName'],
