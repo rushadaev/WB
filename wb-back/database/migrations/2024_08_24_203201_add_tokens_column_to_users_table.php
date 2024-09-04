@@ -6,18 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->boolean('notified_12_hours')->default(false);
-            $table->boolean('notified_3_hours')->default(false);
+            $table->string('tokens')->nullable()->after('password'); // Add 'tokens' column after 'password' column
         });
     }
-    
-    public function down()
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn(['notified_12_hours', 'notified_3_hours']);
+            $table->dropColumn('tokens'); // Remove 'tokens' column
         });
     }
 };

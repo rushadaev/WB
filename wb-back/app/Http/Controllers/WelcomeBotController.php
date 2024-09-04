@@ -18,7 +18,10 @@ use App\Traits\UsesWildberriesSupplies;
 use App\Jobs\DeleteTelegramMessage;
 use App\Models\Cabinet;
 use Carbon\Carbon;
+use App\Models\Feedback;
+use App\Jobs\GenerateChatGptResponseJob;
 use Illuminate\Support\Facades\DB;
+use OpenAI\Laravel\Facades\OpenAI;
 
 class WelcomeBotController extends Controller
 {
@@ -136,7 +139,7 @@ class WelcomeBotController extends Controller
         [['text' => '5000 токенов -> 8490р', 'callback_data' => 'pay_5000_tokens']],
         [['text' => '10000 токенов -> 12990р', 'callback_data' => 'pay_10000_tokens']],
         [['text' => '💳 Оплата по счету', 'url' => 'https://your-payment-url.com']],
-        [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']]
+        [['text' => '🏠 Обратно в кабинет', 'callback_data' => 'welcome_cabinet']]
     ]);
         
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
@@ -243,6 +246,13 @@ class WelcomeBotController extends Controller
             case strpos($data, 'welcome_delete_cabinet_') === 0:
                 $cabinetId = str_replace('welcome_delete_cabinet_', '', $data);
                 $this->handleDeleteCabinet($chatId, $cabinetId, $messageId);
+                break;
+            
+            // change_answer_{$question->id}
+            case strpos($data, 'change_answer_') === 0:
+                $questionId = str_replace('change_answer_', '', $data);
+                Log::info("Change answer for question ID: {$questionId}");
+                $this->handleChangeAnswer($chatId, $questionId, $messageId);
                 break;
 
             case strpos($data, 'welcome_feedback_settings_autosend_') === 0:
@@ -515,5 +525,98 @@ class WelcomeBotController extends Controller
                 Cache::forget("add_key_message_id_{$userTelegramId}");
             }
         }
+    }
+
+    public function handleChangeAnswer($chatId, $questionId, $messageId = null)
+    {
+        $user = Auth::user();
+        $question = Feedback::findOrFail($questionId);
+
+        $statusMessage = "Загрузка ответа...";
+        $this->updateAnswerMessage($chatId, $question, $statusMessage, $messageId);
+
+        $generatedResponse = $this->generateGptResponse($question);
+
+        $message = $this->formatMessage($question, $generatedResponse);
+
+        Log::info("generatedResponse: {$generatedResponse}");
+        Log::info("Change answer for messageId ID: {$messageId}");
+
+        $questionKeyboard = new InlineKeyboardMarkup([
+            [['text' => '🔄 Другой', 'callback_data' => "change_answer_{$question->id}"], ['text' => '✅Отправить', 'callback_data' => "accept_answer_{$question->id}"]],
+            [['text' => '💩Удалить вопрос', 'callback_data' => "delete_question_{$question->id}"]],
+        ]);
+
+
+        $this->sendOrUpdateMessage($chatId, $messageId, $message, $questionKeyboard, 'HTML');
+    }
+
+    public function updateAnswerMessage($chatId, $question, $messageToFormat, $messageId)
+    {
+        $generatedResponse = $messageToFormat;
+
+        $message = $this->formatMessage($question, $generatedResponse);
+
+        $questionKeyboard = new InlineKeyboardMarkup([
+            [['text' => '⏳Загрузка ответа', 'callback_data' => "loading"]],
+        ]);
+
+        $this->sendOrUpdateMessage($chatId, $messageId, $message, $questionKeyboard, 'HTML');
+    }
+
+    public function formatMessage($question, $generatedResponse)
+    {
+        $createdDate = Carbon::parse($question['createdDate'])->locale('ru')->isoFormat('LLL');
+        $supplierName = str_replace('Индивидуальный предприниматель', 'ИП', $question['productDetails']['supplierName']);
+        $supplierName = htmlspecialchars($supplierName);
+        $userName = $question['userName']; 
+        $productName = htmlspecialchars($question['productDetails']['productName']);
+        $article = htmlspecialchars($question['productDetails']['imtId']);
+        $questionText = htmlspecialchars($question['text']);
+        $generatedResponseText = htmlspecialchars($generatedResponse);
+
+        return "rid_$question->id\n\n<b>Дата:</b> $createdDate\n$supplierName\n<b>Артикул:</b> $article\n<b>📦 Товар:</b> $productName\n\n<b>💬 {$userName}:\n</b>$questionText\n<b>⭐ Оценка:</b> $question->productValuation\n\n<b>🤖 #Предлагаемый_ответ:\n\n</b><code>$generatedResponseText</code>";
+    }
+
+    public function generateGptResponse($feedback){
+        
+        $user = $feedback->cabinet->user;
+
+        if ($user->tokens <= 0) {
+            return;
+        }
+        try {
+            $response = OpenAI::chat()->create([
+                'model' => 'gpt-4o-mini',
+                'max_tokens' => 200,
+                'temperature' => 0.5,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Ты помощник продавца в маркеплейсе Wildberries. Твоя задача давать максимально сгалаженные ответы на вопросы и отзывы под товарами. Твои ответы будут вставлены на сайте. Тебя зовут Алексей. Вопрос пользователя:'],
+                    ['role' => 'user', 'content' => $feedback->text],
+                    ['role' => 'user', 'content' => "Прошлый ответ не нравится:$feedback->answer"],
+                ],
+            ]);
+
+            $answer = $response['choices'][0]['message']['content'] ?? null;
+            if(!$answer){
+                return;
+            }
+            // Update feedback with the response
+            $feedback->update([
+                'answer' => $answer,
+                'status' => 'ready_to_send',
+            ]);
+            
+            // Decrease user's token count after success
+            $user->tokens = $user->tokens - 1;
+            $user->save();
+
+            return $answer;
+
+            Log::info('Request to Chat GPT succesfull', ['feedback_id' => $feedback->id, 'answer' => $answer]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching ChatGPT response: ' . $e->getMessage());
+        }
+        
     }
 }

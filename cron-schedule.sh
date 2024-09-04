@@ -7,7 +7,7 @@ mkdir -p /var/www/wb-back/cron.d
 echo "* * * * * cd /var/www/wb-back && php artisan schedule:run --no-ansi >> /var/www/wb-back/storage/logs/cron.log 2>&1" > /var/www/wb-back/cron.d/laravel-schedule
 
 # Temporary cron job for testing
-echo "* * * * * echo 'Cron is working at ' >> /var/www/wb-back/storage/logs/cron_test.log 2>&1" >> /var/www/wb-back/cron.d/laravel-schedule
+# echo "* * * * * echo \"Cron is working at \$(date)\" >> /var/www/wb-back/storage/logs/cron_test.log 2>&1" >> /var/www/wb-back/cron.d/laravel-schedule
 
 # Give execute permission to the cron job file
 chmod 0644 /var/www/wb-back/cron.d/laravel-schedule

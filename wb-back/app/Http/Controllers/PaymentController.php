@@ -49,7 +49,7 @@ class PaymentController extends Controller
         $paymentId = Cache::get("payment_id_{$orderId}");
     
         if (!$paymentId) {
-            return redirect()->away('https://t.me/wbhelpy_bot');
+            return redirect()->away('https://t.me/wbhelpyfb_bot');
         }
     
         // Retrieve payment details from YooKassa
@@ -57,10 +57,12 @@ class PaymentController extends Controller
     
         Log::info('Payment details', $payment->jsonSerialize());
         if ($payment->status === 'succeeded') {
-            return redirect()->away('https://t.me/wbhelpy_bot');
+            $this->handlePaymentSuccess($payment); 
+            // Handle payment success
+            return redirect()->away('https://t.me/wbhelpyfb_bot');
         } else {
             // Handle payment failure
-            return redirect()->away('https://t.me/wbhelpy_bot');
+            return redirect()->away('https://t.me/wbhelpyfb_bot');
         }
     }
 
@@ -69,63 +71,47 @@ class PaymentController extends Controller
         $requestBody = $request->all();
         // Use the YooKassaService to handle the webhook data
         $payment = $this->yooKassaService->handleWebhook($requestBody);
-        
+        $this->handlePaymentSuccess($payment); 
+    }
+
+    public function handlePaymentSuccess($payment){
         if ($payment) {
             // Extract the telegram_id from the payment metadata
             $telegramId = $payment->getMetadata()->telegram_id ?? null;
-            $subscriptionPeriod = $payment->getMetadata()->subscription_period ?? null;
-            $message = 'Подписка продлена до ';
+            $tokens = $payment->getMetadata()->tokens ?? null;
+            $message = 'Вы купили токены:';
 
-            if ($telegramId && $subscriptionPeriod) {
+            if ($telegramId && $tokens) {
                 // Find the user by telegram_id
                 $user = User::where('telegram_id', $telegramId)->first();
-
+                $user->tokens ??= 0;
                 if ($user) {
-                    // Determine the number of days to add based on the subscription period
-                    switch ($subscriptionPeriod) {
-                        case 'pay_1_week':
-                            $daysToAdd = 7;
+                    $tokensMessage = str_replace(['_tokens'], '', $tokens);
+                    switch ($tokens) {
+                        case '100_tokens':
+                            $user->tokens += 100;
                             break;
-                        case 'pay_1_month':
-                            $daysToAdd = 30;
+                        case '500_tokens':
+                            $user->tokens += 500;
                             break;
-                        case 'pay_3_months':
-                            $daysToAdd = 90;
+                        case '1000_tokens':
+                            $user->tokens += 1000;
                             break;
-                        case 'pay_6_months':
-                            $daysToAdd = 180;
+                        case '5000_tokens':
+                            $user->tokens += 5000;
                             break;
-                        case 'pay_forever':
-                            $daysToAdd = 36500; // Approximately 100 years
-                            break;
-                        default:
-                            $daysToAdd = 0;
+                        case '10000_tokens':
+                            $user->tokens += 10000;
                             break;
                     }
 
-                    if ($daysToAdd > 0) {
-                        // Add the calculated days to the subscription_until field
-                        $user->subscription_until = Carbon::parse($user->subscription_until)->addDays($daysToAdd);
-                        $user->is_paid = 1;
-                        $user->save();
-
-                        $formattedDate = Carbon::parse($user->subscription_until)->format('d-m-Y');
-                        $message = $message.''.$formattedDate.' Спасибо!';
-                        if($subscriptionPeriod == 'pay_forever'){
-                            $message = 'Вы купили доступ навсегда! Спасибо!';
-                        }
-                        $keyboard = new InlineKeyboardMarkup([
-                            [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']] 
-                        ]);
-                        TelegramNotificationService::notify($telegramId, $message, config('telegram.bot_token_supplies'), $keyboard);
-
-                        $username = $user->name;
-                        $message = "#оплата\n@{$username} купил подписку <code>{$subscriptionPeriod}</code>";
-                        SendUserNotificationMessage::dispatch($message, 'HTML');
-                        Log::info('User subscription updated', ['user' => $user, 'days_added' => $daysToAdd]);
-                    } else {
-                        Log::warning('Invalid subscription period', ['subscription_period' => $subscriptionPeriod]);
-                    }
+                    $user->save();
+                    $message = $message.' '.$tokensMessage.' шт.';
+                    $keyboard = new InlineKeyboardMarkup([
+                        [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']] 
+                    ]);
+                    TelegramNotificationService::notify($telegramId, $message, config('telegram.bot_token'), $keyboard);
+                    Log::info('User tokens updated', ['user' => $user, 'tokens' => $tokens]);
                 } else {
                     Log::warning('User not found for telegram_id', ['telegram_id' => $telegramId]);
                 }
@@ -138,6 +124,5 @@ class PaymentController extends Controller
             Log::info('Webhook failed', ['WebhookInfo' => $requestBody]);
             return response()->json(['message' => 'Payment processing error'], 400);
         }
-       
     }
 }

@@ -142,7 +142,7 @@ class TelegramControllerSupplies extends Controller
         } elseif (strpos($data, 'pay_') === 0) {
             $this->handlePayment($chatId, $data);
         } else {
-            // Add handling for other types of callback queries here
+            // Add handling for other types of callback queries here 
             $this->handleOtherCallbackQueries($chatId, $data, $messageId);
         }
 
@@ -219,27 +219,6 @@ class TelegramControllerSupplies extends Controller
             [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']] 
         ]);
         $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
-        // $bot->sendInvoice(
-        //     $chatId,
-        //     $title,
-        //     $description,
-        //     $payload,
-        //     config('telegram.payment_provider_token_supplies'),
-        //     'start_parameter',  // This should be a unique start parameter for the invoice
-        //     'RUB',
-        //     [['label' => $title, 'amount' => $price]],
-        //     [
-        //         'photo_url' => 'https://your-image-url.com/image.jpg', // Optional
-        //         'photo_size' => 600, // Optional
-        //         'photo_width' => 600, // Optional
-        //         'photo_height' => 400, // Optional
-        //         'need_name' => true, // Optional
-        //         'need_phone_number' => true, // Optional
-        //         'need_email' => true, // Optional
-        //         'need_shipping_address' => false, // Optional
-        //         'is_flexible' => false // Optional
-        //     ]
-        // );
     }
 
     protected function setApiKey($chatId, $apiKey, $service, Client $bot)

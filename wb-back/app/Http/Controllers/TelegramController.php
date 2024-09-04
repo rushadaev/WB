@@ -69,7 +69,7 @@ class TelegramController extends Controller
         $bot->command('ping', function ($message) use ($bot, $user) {
             $chatId = $message->getChat()->getId();
             Log::info("ChatMember", ['member' => 'GO!']);
-            $bot->sendMessage($chatId, 'pong!');
+            $bot->sendMessage($chatId, 'Pong new server');
         });
         $bot->command('start', function ($message) use ($welcomeBot, $user, $bot) {
            
@@ -269,12 +269,19 @@ class TelegramController extends Controller
 
     protected function handleCallbackQuery($chatId, $data, $messageId, WarehouseBotController $warehouseBot, WelcomeBotController $welcomeBot, $user, $callbackQuery, $bot)
     {
+        //change_answer_
+
         if (strpos($data, 'wh_') === 0) {
             $warehouseBot->handleInlineQuery($chatId, $data, $messageId);
+        } elseif (strpos($data, 'change_answer_') === 0) {
+            Log::info('Change answer');
+            $welcomeBot->handleInlineQuery($chatId, $data, $messageId);
+            $bot->answerCallbackQuery($callbackQuery->getId(), "У вас осталось токенов: {$user->tokens}", null);
         } elseif (strpos($data, 'welcome_') === 0) {
             $welcomeBot->handleInlineQuery($chatId, $data, $messageId);
         } elseif (strpos($data, 'pay_') === 0) {
-            $this->handlePayment($chatId, $data);
+            $bot->answerCallbackQuery($callbackQuery->getId(), '💸 Пожалуйста, оплатите по ссылке', null);
+            $this->handlePayment($chatId, $data, $messageId, $user);
         } else {
             // Add handling for other types of callback queries here
             $this->handleOtherCallbackQueries($chatId, $data, $messageId);
@@ -332,51 +339,42 @@ class TelegramController extends Controller
         }
     }
 
-    protected function handlePayment($chatId, $data)
+    protected function handlePayment($chatId, $data, $messageId, $user)
     {
         switch ($data) {
             case 'pay_100_tokens':
-                $this->sendInvoice($chatId, '100 токенов', 'Покупка 100 токенов', '100_tokens', 39000);
+                $this->sendInvoice($chatId, '100 токенов', 'Покупка 100 токенов', '100_tokens', 390, $messageId, $user);
                 break;
             case 'pay_500_tokens':
-                $this->sendInvoice($chatId, '500 токенов', 'Покупка 500 токенов', '500_tokens', 149000);
+                $this->sendInvoice($chatId, '500 токенов', 'Покупка 500 токенов', '500_tokens', 1490, $messageId, $user);
                 break;
             case 'pay_1000_tokens':
-                $this->sendInvoice($chatId, '1000 токенов', 'Покупка 1000 токенов', '1000_tokens', 229000);
+                $this->sendInvoice($chatId, '1000 токенов', 'Покупка 1000 токенов', '1000_tokens', 2290, $messageId, $user);
                 break;
             case 'pay_5000_tokens':
-                $this->sendInvoice($chatId, '5000 токенов', 'Покупка 5000 токенов', '5000_tokens', 849000);
+                $this->sendInvoice($chatId, '5000 токенов', 'Покупка 5000 токенов', '5000_tokens', 8490, $messageId, $user);
                 break;
             case 'pay_10000_tokens':
-                $this->sendInvoice($chatId, '10000 токенов', 'Покупка 10000 токенов', '10000_tokens', 1299000);
+                $this->sendInvoice($chatId, '10000 токенов', 'Покупка 10000 токенов', '10000_tokens', 12990, $messageId, $user);
                 break;
         }
     }
 
-    protected function sendInvoice($chatId, $title, $description, $payload, $price)
+    protected function sendInvoice($chatId, $title, $description, $payload, $price, $messageId, $user)
     {
+        $payment = new PaymentController();
         $bot = new Client(config('telegram.bot_token'));
-        $bot->sendInvoice(
-            $chatId,
-            $title,
-            $description,
-            $payload,
-            config('telegram.payment_provider_token'),
-            'start_parameter',  // This should be a unique start parameter for the invoice
-            'RUB',
-            [['label' => $title, 'amount' => $price]],
-            [
-                'photo_url' => 'https://your-image-url.com/image.jpg', // Optional
-                'photo_size' => 600, // Optional
-                'photo_width' => 600, // Optional
-                'photo_height' => 400, // Optional
-                'need_name' => true, // Optional
-                'need_phone_number' => true, // Optional
-                'need_email' => true, // Optional
-                'need_shipping_address' => false, // Optional
-                'is_flexible' => false // Optional
-            ]
-        );
+        $orderId = $chatId.'_'.$payload;
+        $chat = $user->telegram_id ?? $chatId;
+        $url = $payment->createPaymentLink($price, $orderId, $chat, $description, $payload);
+        $message = '💸 '.$description;
+        $keyboard = new InlineKeyboardMarkup([
+            [['text' => '💳 Оплатить', 'url' => $url]],
+            [['text' => '🔙 Назад', 'callback_data' => 'welcome_pay']] 
+        ]);
+
+        $bot->editMessageText($chatId, $messageId, $message, null, false, $keyboard);
+        // $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
     }
 
     protected function setApiKey($chatId, $apiKey, $service, Client $bot, $messageId)

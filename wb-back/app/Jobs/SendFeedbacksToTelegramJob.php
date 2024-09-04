@@ -49,7 +49,7 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         }
     
         $feedbacks = Feedback::where('cabinet_id', $cabinet->id)
-                     ->where('status', 'not_sent')
+                     ->where('status', 'ready_to_send')
                      ->inRandomOrder()
                      ->take(1)
                      ->get();
@@ -125,10 +125,10 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
     {
         //$generatedResponse = $this->generateGptResponse($question['text'].'Товар:'.$question['productDetails']['productName']);
         $questionKeyboard = new InlineKeyboardMarkup([
-            [['text' => '🔄 Другой', 'callback_data' => "change_answer"], ['text' => '✅Отправить', 'callback_data' => "accept_answer"]],
-            [['text' => '💩Удалить вопрос', 'callback_data' => "delete_question"]],
+            [['text' => '🔄 Другой', 'callback_data' => "change_answer_{$question->id}"], ['text' => '✅Отправить', 'callback_data' => "accept_answer_{$question->id}"]],
+            [['text' => '💩Удалить вопрос', 'callback_data' => "delete_question_{$question->id}"]],
         ]);
-        $message = $this->formatMessage($question, 'Not Available Using Russian Server');
+        $message = $this->formatMessage($question, 'Ответ недоступен, пожалуйста, нажмите кнопку "Другой"');
         SendTelegramMessage::dispatch($groupId, $message, 'HTML', $questionKeyboard); 
     }
 
@@ -141,8 +141,8 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         $productName = htmlspecialchars($question['productDetails']['productName']);
         $article = htmlspecialchars($question['productDetails']['imtId']);
         $questionText = htmlspecialchars($question['text']);
-        $generatedResponseText = $generatedResponse;
+        $generatedResponseText = htmlspecialchars($question['answer'] ?? $generatedResponse);
 
-        return "rid_$question->id\n\n<b>Дата:</b> $createdDate\n$supplierName\n<b>Артикул:</b> $article\n<b>📦 Товар:</b> $productName\n\n<b>💬 {$userName}:\n</b>$questionText\n<b>⭐ Оценка:</b> $question->productValuation\n\n<b>🤖 #Предлагаемый_ответ:</b> <code>$generatedResponseText</code>";
+        return "rid_$question->id\n\n<b>Дата:</b> $createdDate\n$supplierName\n<b>Артикул:</b> $article\n<b>📦 Товар:</b> $productName\n\n<b>💬 {$userName}:\n</b>$questionText\n<b>⭐ Оценка:</b> $question->productValuation\n\n<b>🤖 #Предлагаемый_ответ:\n\n</b><code>$generatedResponseText</code>";
     }
 }
