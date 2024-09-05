@@ -24,10 +24,10 @@ Artisan::command('inspire', function () {
     $result = OpenAI::chat()->create([
         'model' => 'gpt-4o-mini',
         'max_tokens' => 200,
-        'temperature' => 0.3, // Adjusted temperature for more creative responses
+        'temperature' => 0.3,
         'messages' => [
-            ['role' => 'system', 'content' => 'Provide random quote'],
-            ['role' => 'user', 'content' => 'format should be like this: '.$quote],
+            ['role' => 'system', 'content' => 'You are highly encouraged to provide an inspiring quote.'],
+            ['role' => 'user', 'content' => 'Provide quote based on current time' . date('Y-m-d H:i:s'). ' and this quote: '.$quote],
         ],
     ]);
     
@@ -64,7 +64,7 @@ Artisan::command('inspire', function () {
     $channel = config('telegram.channel_test');
     // Dispatch the job to send the message to Telegram
     TelegramInspire::dispatch($channel, $message, 'MarkdownV2', $token);
-})->purpose('Display an inspiring quote')->hourly();
+})->purpose('Display an inspiring quote')->everyThreeHours();
 
 
 Artisan::command('feedback_send', function () {

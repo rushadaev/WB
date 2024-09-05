@@ -10,7 +10,7 @@
     "require": {
         "php": "^8.2",
         "laravel/framework": "^11.0",
-        "laravel/horizon": "^5.27",
+        "laravel/horizon": "^5.28",
         "laravel/tinker": "dev-develop",
         "openai-php/laravel": "^0.10.1",
         "predis/predis": "^2.2",
