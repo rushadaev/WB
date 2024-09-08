@@ -31,17 +31,47 @@ class GenerateChatGptResponseJob implements ShouldQueue
     public function handle(): void
     {
         $user = $this->feedback->cabinet->user;
+        $advertisement = $this->feedback->cabinet->settings['onboarding']['advertisement_message'] ?? null;
+        $callToAction = $this->feedback->cabinet->settings['onboarding']['call_to_action'] ?? null;
+        $productName = $this->feedback->productDetails['productName'] ?? 'товар';
+        $productDescription = $this->feedback->productDetails['description'] ?? 'описание товара';
+        $userName = $this->feedback->userName ?? 'клиент';
+        $productValuation = $this->feedback->productValuation ?? '? звезд';
 
         if ($user->tokens <= 0) {
             return;
         }
         try {
+            $brand = $this->feedback->productDetails['brandName'] ?? 'бренд';
+
+            $prompt = "# промпт
+
+Выступай в роли представителя службы поддержки бренда {$brand} на маркетплейсе Wildberries.  Ваше задание — сгенерировать ответ на отзыв клиента о продукте на маркетплейсе Wildberries. Ответ должен быть вежливым и направленным на решение проблем, если они есть, или на выражение благодарности за положительный отзыв. Используйте дружелюбный и профессиональный тон, упомяни название товара и поблагодарите клиента за покупку. Перед написанием ответа, определите ключевые SEO слова из описания товара, которые могут быть полезны для составления ответа, и интегрируйте их в текст. Обращайтесь к клиенту всегда по имени. В своем ответе укажите только ответ на отзыв. 
+
+С уважение {$brand}.
+
+важные правила:
+
+1. В ответе на отзывы нельзя упоминать Wildberies или любое другое название маркетплейса. 
+2. если клиент ругается по поводу доставки, то объясните, что вопросы доставки и логистики находятся в ведении Wildberries, и продавец не может повлиять на сроки доставки. Ответ должен быть кратким и поддерживающим.
+";
+$context = "# Контекст:
+
+Название товара: {$productName}
+
+Данные по отзыву
+
+Имя: {$userName} 
+
+Оценка: {$productValuation} 
+
+Отзыв: {$this->feedback->text}";
             $response = OpenAI::chat()->create([
                 'model' => 'gpt-4o-mini',
                 'max_tokens' => 200,
                 'messages' => [
-                    ['role' => 'system', 'content' => 'Ты помощник продавца в маркеплейсе Wildberries. Твоя задача давать максимально сгалаженные ответы на вопросы и отзывы под товарами. Твои ответы будут вставлены на сайте. Тебя зовут Алексей. Вопрос пользователя:'],
-                    ['role' => 'user', 'content' => $this->feedback->text],
+                    ['role' => 'system', 'content' => $prompt],
+                    ['role' => 'user', 'content' => $context],
                 ],
                 'response_format' => [
                     'type' => 'json_schema',

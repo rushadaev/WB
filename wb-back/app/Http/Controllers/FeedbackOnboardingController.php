@@ -26,54 +26,48 @@ class FeedbackOnboardingController extends Controller
         //Check if user already has a cabinet and brand name
         $user = Auth::user();
         $cabinet = $user->cabinets()->first();
-        if ($cabinet) {
-            $message = "Текущее имя вашего бренда: {$cabinet->name}.
-Введите новое имя или оставьте текущее 👇";
-
-            Cache::put("session_{$chatId}", ['action' => 'collect_brand_name', 'messageId' => $messageId], 300); // Cache for 5 minutes
-            $keyboard = new InlineKeyboardMarkup([
-                [['text' => 'Пропустить ➡️', 'callback_data' => 'welcome_handle_mode_'.$cabinet->id]], 
-                [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
-            ]);
-            $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
-            return;
-        }
-
-        $message = "Введите название вашего бренда на маркетплейсе 👇";
-        //Set cache session to collection brand name
-        Cache::put("session_{$chatId}", ['action' => 'collect_brand_name', 'messageId' => $messageId], 300); // Cache for 5 minutes
-        $keyboard = new InlineKeyboardMarkup([
-            [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
-        ]);
-        $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
-    }
-
-    public function setBrandName($chatId, $text, $messageIdOriginal, $messageId){
-        $user = Auth::user();
-    
-        // Find the first cabinet for the user or create a new one if none exists
-        $cabinet = $user->cabinets()->first();
-    
-        if ($cabinet) {
-            // Update the cabinet name if it exists
-            $cabinet->name = $text;
-            $cabinet->save();
-        } else {
+        if (!$cabinet) {
             // Create a new cabinet with the provided name and default settings
             $cabinet = $user->cabinets()->create([
-                'name' => $text,
+                'name' => 'Кабинет #' . $user->id,
                 'settings' => [], // Default settings
             ]);
         }
-        $settings = $cabinet->settings;
-        // Init onboarding settings if they don't exist
-        $settings = $this->checkOnboarding($settings);
-        $settings['onboarding']['brand_name'] = $text;
         
-        $this->setupMode($chatId, $messageIdOriginal, $cabinet->id);
+        $this->setupMode($chatId, $messageId, $cabinet->id);
     }
 
-    public function setupMode($chatId, $messageIdOriginal, $cabinetId)
+    public function setupCabinet($chatId, $cabinetId, $messageIdOriginal)
+    {
+        $cabinet = Cabinet::findOrFail($cabinetId);
+        $settings = $cabinet->settings;
+        $mySettingsString = '';
+        $modeHuman = [
+            'auto_response' => 'Автоматический ответ',
+            'positive_response' => 'Ответы на положительные',
+            'manual_confirmation' => 'Ручное подтверждение',
+            'combined' => 'Комбинированный режим',
+        ];
+
+        $mySettingsString .= "⚙️ Режим: <code>" . $modeHuman[$settings['onboarding']['mode']] . "</code>\n\n";
+        $mySettingsString .= "💬 Рекламное сообщение: <code>" . $settings['onboarding']['advertisement_message'] . "</code>\n\n";
+        $mySettingsString .= "🚀 Призыв к действию: <code>" . $settings['onboarding']['call_to_action'] . "</code>\n\n";
+        
+        $message = "Ваши текущие настройки:
+        
+{$mySettingsString}";
+        
+        $keyboard = new InlineKeyboardMarkup([
+            [['text' => '⚙️ Изменить режим', 'callback_data' => 'welcome_handle_mode_' . $cabinet->id]],
+            [['text' => '⚙️ Изменить рекламное сообщение', 'callback_data' => 'welcome_setup_advertisement_message_' . $cabinet->id]],
+            [['text' => '⚙️ Изменить призыв к действию', 'callback_data' => 'welcome_setup_call_to_action_' . $cabinet->id]],
+            [['text' => '🏠 Вернуться в кабинет', 'callback_data' => 'welcome_cabinet']]
+        ]);
+
+        $this->sendOrUpdateMessage($chatId, $messageIdOriginal, $message, $keyboard, 'HTML');
+    }
+
+    public function setupMode($chatId, $messageIdOriginal, $cabinetId, $from = null)
     {
         $cabinet = Cabinet::findOrFail($cabinetId);
         //Current settings
@@ -85,13 +79,15 @@ class FeedbackOnboardingController extends Controller
         $message = "Я могу обрабатывать ваши отзывы несколькими способами.
 Выберите подходящий режим:
 
-1️⃣ <b>Автоматический ответ на все отзывы:</b> Я буду автоматически отвечать на все поступающие отзывы — быстро и без вашего участия.
+ 1️⃣ <b>Комбинированный режим (Рекомендуется):</b> Я автоматически отвечу на положительные отзывы, а вы сможете вручную подтвердить ответы на негативные.
 
-2️⃣ <b>Ответы только на положительные отзывы:</b> Я буду автоматически отвечать на отзывы с оценкой 4-5 звезд. Отзывы с низкой оценкой (1-3 звезды) отправлю вам для ручного ответа.
+ 2️⃣ <b>Автоматический ответ на все отзывы:</b> Я буду автоматически отвечать на все поступающие отзывы — быстро и без вашего участия.
 
-3️⃣ <b>Ручное подтверждение:</b> Я сгенерирую ответ на каждый отзыв, а вы решите, отправить его, изменить или написать свой.
+ 3️⃣ <b>Ответы только на положительные отзывы:</b> Я буду автоматически отвечать на отзывы с оценкой 4-5 звезд. Отзывы с низкой оценкой (1-3 звезды) отправлю вам для ручного ответа.
 
-4️⃣ <b>Комбинированный режим (Рекомендуется):</b> Я автоматически отвечу на положительные отзывы, а вы сможете вручную подтвердить ответы на негативные.
+ 4️⃣ <b>Ручное подтверждение:</b> Я сгенерирую ответ на каждый отзыв, а вы решите, отправить его, изменить или написать свой.
+
+
 
 Какой режим подходит вам?
 
@@ -107,13 +103,16 @@ class FeedbackOnboardingController extends Controller
         if($mode){
             $message .= "\n\nТекущий режим: <code>{$modeHuman[$mode]}</code>";
         };
+        
+        //save $from in cache
+        if($from)
+            Cache::put("from_{$chatId}", $from, 300); // Cache for 5 minutes
 
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '1️⃣ Комбинированный режим', 'callback_data' => 'welcome_set_mode_combined_'.$cabinet->id]],
             [['text' => '2️⃣ Автоматический ответ', 'callback_data' => 'welcome_set_mode_auto_response_'.$cabinet->id]],
             [['text' => '3️⃣ Ответы на положительные', 'callback_data' => 'welcome_set_mode_positive_response_'.$cabinet->id]],
             [['text' => '4️⃣ Ручное подтверждение', 'callback_data' => 'welcome_set_mode_manual_confirmation_'.$cabinet->id]],
-            [['text' => '🔙 Назад', 'callback_data' => 'welcome_start_onboarding']] 
         ]);
         $this->sendOrUpdateMessage($chatId, $messageIdOriginal, $message, $keyboard, 'HTML');
     }
@@ -143,8 +142,15 @@ class FeedbackOnboardingController extends Controller
         $cabinet->settings = $settings;
         $cabinet->save();
     
-        // Send a message after setting the mode
-        $this->sendSetAdvertisementMessage($chatId, $messageId, $cabinetId);
+        //get from from cache
+        $from = Cache::get("from_{$chatId}");
+        if($from == 'welcome_setup_cabinet'){
+            $this->setupCabinet($chatId, $cabinetId, $messageId);
+        } else {
+            $this->sendSetAdvertisementMessage($chatId, $messageId, $cabinetId);
+        }
+        Cache::forget("from_{$chatId}");
+       
     }
     
     public function setAdvertisementMessage($chatId, $text, $cabinetId, $messageId)
@@ -158,8 +164,15 @@ class FeedbackOnboardingController extends Controller
         $settings['onboarding']['advertisement_message'] = $text;
         $cabinet->settings = $settings;
         $cabinet->save();
-        
-        $this->sendSetCallToAction($chatId, $messageId, $cabinetId);
+
+        //get from from cache
+        $from = Cache::get("from_{$chatId}");
+        if($from == 'welcome_setup_cabinet'){
+            $this->setupCabinet($chatId, $cabinetId, $messageId);
+        } else {
+            $this->sendSetCallToAction($chatId, $messageId, $cabinetId);
+        }
+        Cache::forget("from_{$chatId}");
     }
 
     public function setCallToAction($chatId, $text, $cabinetId, $messageId)
@@ -175,14 +188,22 @@ class FeedbackOnboardingController extends Controller
         $cabinet->save();
         
         $isKeyExists = $cabinet->getFeedbackApiKey();
-        if($isKeyExists){
-            $this->listSettings($chatId, $messageId, $cabinetId);
+
+        //get from from cache
+        $from = Cache::get("from_{$chatId}");
+        if($from == 'welcome_setup_cabinet'){
+            $this->setupCabinet($chatId, $cabinetId, $messageId);
         } else {
-            $this->sendFinishOnboarding($chatId, $messageId, $cabinetId);
+            if($isKeyExists){
+                $this->listSettings($chatId, $messageId, $cabinetId);
+            } else {
+                $this->sendFinishOnboarding($chatId, $messageId, $cabinetId);
+            }
         }
+        Cache::forget("from_{$chatId}");
     }
     
-    public function sendSetAdvertisementMessage($chatId, $messageId = null, $cabinetId)
+    public function sendSetAdvertisementMessage($chatId, $messageId = null, $cabinetId, $from = null)
     {
         //Check if message already set
         $cabinet = Cabinet::findOrFail($cabinetId);
@@ -204,6 +225,10 @@ class FeedbackOnboardingController extends Controller
 
 Отправьте сообщение или пропустите этот шаг 👇";
         }
+
+        //save $from in cache
+        if($from)
+            Cache::put("from_{$chatId}", $from, 300);
         
         //Set cache session to collection advertisement message
         Cache::put("session_{$chatId}", ['action' => 'collect_advertisement_message','cabinet_id' => $cabinetId, 'messageId' => $messageId], 300); // Cache for 5 minutes
@@ -213,7 +238,7 @@ class FeedbackOnboardingController extends Controller
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
     }
 
-    public function sendSetCallToAction($chatId, $messageId = null, $cabinetId)
+    public function sendSetCallToAction($chatId, $messageId = null, $cabinetId, $from = null)
     {
         $cabinet = Cabinet::findOrFail($cabinetId);
         //check if mode already set
@@ -233,6 +258,10 @@ class FeedbackOnboardingController extends Controller
 ";
         }
         
+        //save $from in cache
+        if($from)
+            Cache::put("from_{$chatId}", $from, 300); // Cache for 5 minutes
+
         //Set cache session to collection call to action
         Cache::put("session_{$chatId}", ['action' => 'collect_call_to_action','cabinet_id' => $cabinetId, 'messageId' => $messageId], 300); // Cache for 5 minutes
         $keyboard = new InlineKeyboardMarkup([
@@ -241,19 +270,31 @@ class FeedbackOnboardingController extends Controller
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
     }
     public function skipAdvertisementMessage($chatId, $cabinetId, $messageId){
-        $this->sendSetCallToAction($chatId, $messageId, $cabinetId);
+        $from = Cache::get("from_{$chatId}");
+        if($from == 'welcome_setup_cabinet'){
+            $this->setupCabinet($chatId, $cabinetId, $messageId);
+        } else {
+            $this->sendSetCallToAction($chatId, $messageId, $cabinetId);
+        }
+        Cache::forget("from_{$chatId}");
         Cache::forget("session_{$chatId}");
     }
     public function skipCallToAction($chatId, $cabinetId, $messageId){
         //check if key exists in cabinet
         $cabinet = Cabinet::findOrFail($cabinetId);
         $isKeyExists = $cabinet->getFeedbackApiKey();
-        if($isKeyExists){
-            $this->listSettings($chatId, $messageId, $cabinetId);
+
+        $from = Cache::get("from_{$chatId}");
+        if($from == 'welcome_setup_cabinet'){
+            $this->setupCabinet($chatId, $cabinetId, $messageId);
         } else {
-            $this->sendFinishOnboarding($chatId, $messageId, $cabinetId);
+            if($isKeyExists){
+                $this->listSettings($chatId, $messageId, $cabinetId);
+            } else {
+                $this->sendFinishOnboarding($chatId, $messageId, $cabinetId);
+            }
         }
-        
+        Cache::forget("from_{$chatId}");
         Cache::forget("session_{$chatId}");
     }
 

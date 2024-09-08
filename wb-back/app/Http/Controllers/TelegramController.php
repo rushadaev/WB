@@ -332,12 +332,6 @@ class TelegramController extends Controller
                         if($cabinetId && $messageId)
                             $welcomeBot->handleCollectStarRangeConfirm($chatId, $text, $cabinetId, $messageIdOriginal, $messageId);
                         break;
-                    case 'collect_brand_name':
-                        $messageIdOriginal = $session['messageId'] ?? null;
-                        $bot->deleteMessage($chatId, $messageId); 
-                        if($messageId)
-                            $welcomeBot->handleCollectBrandName($chatId, $text, $messageIdOriginal, $messageId);
-                        break;
                     case 'collect_advertisement_message':
                         $cabinetId = $session['cabinet_id'] ?? null;
                         $messageIdOriginal = $session['messageId'] ?? null; 

@@ -159,17 +159,16 @@ class WelcomeBotController extends Controller
         $feedbackOnboardingController->setupBrand($chatId, $messageId);
     }
 
-    public function handleCollectBrandName($chatId, $text, $messageIdOriginal, $messageId){
-        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
-        $feedbackOnboardingController->setBrandName($chatId, $text, $messageIdOriginal, $messageId);
-    }
-
     public function handleCabinet($chatId, $messageId = null)
     {
         $user = Auth::user();
         $keysCount = $user->apiKeysCount();
         $cabinet = $user->cabinets()->first();
         $tokens = $user->tokens;
+        if(!$cabinet){
+            $this->handleStart($chatId, $messageId);
+            return;
+        }
         $feedbacksCount = Feedback::where('cabinet_id', $cabinet->id)->count() ?? 0;
         $message = "🍓 Личный кабинет
 
@@ -187,7 +186,7 @@ class WelcomeBotController extends Controller
 
         // Conditionally add the "Setup cabinet" button if the user has API keys
         if ($keysCount > 0) {
-            array_unshift($keyboardButtons, [['text' => '🔧 Настроить кабинет', 'callback_data' => 'welcome_setup_cabinet']]);
+            array_unshift($keyboardButtons, [['text' => '🔧 Настроить кабинет', 'callback_data' => 'welcome_manage_cabinet']]);
         }
 
         $keyboard = new InlineKeyboardMarkup($keyboardButtons);
@@ -286,7 +285,7 @@ class WelcomeBotController extends Controller
         $message = "";
         if(!$user->gifted_2){
             $user->update(['tokens' => $user->tokens + 20, 'gifted_2' => true]);
-            $message = "Я добавил вам на баланс 20 ответов🎁";
+            $message = "Я добавил вам на баланс 20 ответов🎁\n\n";
         }
         $message .= "Поздравляю, настройка завершена!
 
@@ -322,14 +321,20 @@ class WelcomeBotController extends Controller
 
         // Step 3: Create an inline keyboard for managing the cabinet
         $keyboard = new InlineKeyboardMarkup([
-            [['text' => '🛠️ Общие настройки', 'callback_data' => "welcome_start_onboarding"]],
-            [['text' => '⚙️ Настроить отзывы', 'callback_data' => "welcome_manage_reviews_{$cabinetId}"]],
+            // [['text' => '🛠️ Общие настройки', 'callback_data' => "welcome_start_onboarding"]],
+            [['text' => '⚙️ Настройки', 'callback_data' => "welcome_setup_cabinet_{$cabinetId}"]],
             [['text' => '❌ Удалить кабинет', 'callback_data' => "welcome_delete_cabinet_{$cabinetId}"]],
             [['text' => '🔙 Назад', 'callback_data' => 'welcome_cabinet']]
         ]);
 
         // Step 4: Send or update the message with the cabinet management options
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
+    }
+
+    public function handleSetupCabinet($chatId, $cabinetId, $messageId = null)
+    {
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->setupCabinet($chatId, $cabinetId, $messageId);
     }
     
     public function handleInlineQuery($chatId, $data, $messageId = null)
@@ -341,7 +346,7 @@ class WelcomeBotController extends Controller
             'welcome_pay' => 'handlePay',
             'welcome_cabinet_list' => 'handleCabinetList',
             'welcome_add_key' => 'handleAddKey',
-            'welcome_setup_cabinet' => 'handleManageCabinet',
+            'welcome_manage_cabinet' => 'handleManageCabinet',
             'welcome_gift' => 'handleGift',
             'welcome_start_onboarding' => 'handleOnboarding',
         ];
@@ -349,7 +354,10 @@ class WelcomeBotController extends Controller
             case isset($mapping[$data]):
                 $this->{$mapping[$data]}($chatId, $messageId);
                 break;
-        
+            case strpos($data, 'welcome_setup_cabinet_') === 0:
+                $cabinetId = str_replace('welcome_setup_cabinet_', '', $data);
+                $this->handleSetupCabinet($chatId, $cabinetId, $messageId);
+                break;
             case strpos($data, 'welcome_manage_reviews_') === 0:
                 $cabinetId = str_replace('welcome_manage_reviews_', '', $data);
                 $this->handleManageReviews($chatId, $cabinetId, $messageId);
@@ -435,6 +443,18 @@ class WelcomeBotController extends Controller
                 $cabinetId = str_replace('welcome_add_group_', '', $data);
                 $this->handleAddGroup($chatId, $cabinetId, $messageId);
                 break;
+            
+            case strpos($data, 'welcome_setup_advertisement_message_') === 0:
+                $cabinetId = str_replace('welcome_setup_advertisement_message_', '', $data);
+                $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+                $feedbackOnboardingController->sendSetAdvertisementMessage($chatId, $messageId, $cabinetId, 'welcome_setup_cabinet');
+                break;
+
+            case strpos($data, 'welcome_setup_call_to_action_') === 0:
+                $cabinetId = str_replace('welcome_setup_call_to_action_', '', $data);
+                $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+                $feedbackOnboardingController->sendSetCallToAction($chatId, $messageId, $cabinetId, 'welcome_setup_cabinet');
+                break;
         
             default:
                 return response()->json(['status' => 'success'], 200);
@@ -446,7 +466,7 @@ class WelcomeBotController extends Controller
     public function handleModeSetup($chatId, $cabinetId, $messageId = null)
     {
         $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
-        $feedbackOnboardingController->setupMode($chatId, $messageId, $cabinetId);
+        $feedbackOnboardingController->setupMode($chatId, $messageId, $cabinetId, 'welcome_setup_cabinet');
     }
 
     public function handleSetMode($chatId, $mode_and_cabinet_id, $messageId = null)
@@ -515,13 +535,13 @@ class WelcomeBotController extends Controller
                     [['text' => ($settings['autosend']['enabled'] ?? false) ? '✅ Настройка автоотправки' : '❌ Настройка автоотправки', 'callback_data' => "welcome_feedback_settings_autosend_setup_$cabinet->id"]],
                     [['text' => ($settings['recommend_products'] ?? false) ? '✅ Рекомендации включены' : '❌ Рекомендации отключены', 'callback_data' => "welcome_feedback_settings_recommend_$cabinet->id"]],
                     [['text' => ($settings['enabled'] ?? false) ? '✅ Бот включен' : '❌ Бот выключен', 'callback_data' => "welcome_feedback_settings_enabled_$cabinet->id"]],
-                    [['text' => '🔙 Назад', 'callback_data' => 'welcome_setup_cabinet']]
+                    [['text' => '🔙 Назад', 'callback_data' => 'welcome_manage_cabinet']]
                 ]);
             } else {
                 // If the bot is disabled, only show the "Enable Bot" and "Back" options
                 $keyboard = new InlineKeyboardMarkup([
                     [['text' => '❌ Включить бота', 'callback_data' => "welcome_feedback_settings_enabled_$cabinet->id"]],
-                    [['text' => '🔙 Назад', 'callback_data' => 'welcome_setup_cabinet']]
+                    [['text' => '🔙 Назад', 'callback_data' => 'welcome_manage_cabinet']]
                 ]);
             }
         } else {
@@ -537,7 +557,7 @@ class WelcomeBotController extends Controller
                     'text' => '+ Добавить чат',
                     'url' => $link 
                 ]],
-                [['text' => '🔙 Назад', 'callback_data' => 'welcome_setup_cabinet']]
+                [['text' => '🔙 Назад', 'callback_data' => 'welcome_manage_cabinet']]
             ]);
         }
 
@@ -566,7 +586,7 @@ class WelcomeBotController extends Controller
                 'text' => '+ Добавить чат',
                 'url' => $link 
             ]],
-            [['text' => '🔙 Назад', 'callback_data' => 'welcome_setup_cabinet']]
+            [['text' => '🔙 Назад', 'callback_data' => 'welcome_manage_cabinet']]
         ]);
         // Send or update the message with the instructions and options
         $updatedMessage = $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');

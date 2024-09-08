@@ -20,6 +20,9 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $cabinetId;
+    public $callToAction;
+    public $advertisement;
+    public $suffixMessage;
 
     /**
      * Create a new job instance.
@@ -49,6 +52,11 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
             Log::error('Group chat ID not set for cabinet: ' . $this->cabinetId);
             return;
         }
+
+        $this->advertisement = $settings['onboarding']['advertisement_message'] ?? null;
+        $this->callToAction = $settings['onboarding']['call_to_action'] ?? null;
+
+        $this->suffixMessage = "\n\n{$this->advertisement}\n{$this->callToAction}";
     
         $feedbacks = Feedback::where('cabinet_id', $cabinet->id)
                      ->where('status', 'ready_to_send')
@@ -56,63 +64,62 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
                      ->take(1)
                      ->get();
 
-        $botEnabled = $settings['enabled'] ?? false;
-        if(!$botEnabled){
-            Log::info('Bot is disabled: ' . $this->cabinetId);
-            return; 
-        } 
+        // $botEnabled = $settings['enabled'] ?? false;
+        // if(!$botEnabled){
+        //     Log::info('Bot is disabled: ' . $this->cabinetId);
+        //     return; 
+        // } 
 
         foreach ($feedbacks as $feedback) {
-            // Safely extract and handle autosend settings
-            $autosendEnabled = $settings['autosend']['enabled'] ?? false;
-            $autosendStarRange = explode('-', $settings['autosend']['star_range'] ?? '0-0');
-            $confirmEnabled = $settings['confirm_before_sending']['enabled'] ?? false;
-            $confirmStarRange = explode('-', $settings['confirm_before_sending']['star_range'] ?? '0-0');
-    
+            $onboarding = $cabinet->settings['onboarding'] ?? null;
+            if (!$onboarding) {
+                Log::error('Onboarding settings not found for cabinet: ' . $this->cabinetId);
+                return;
+            }
+        
+            $mode = $onboarding['mode'] ?? 'manual_confirmation'; // Default to manual_confirmation if not set
             $productValuation = $feedback->productValuation;
-    
-            // Check confirm_before_sending settings
-            if ($confirmEnabled) {
-                $sendIfNoTextConfirm = $settings['confirm_before_sending']['send_if_no_text'] ?? false;
-                $sendIfWithTextConfirm = $settings['confirm_before_sending']['send_if_with_text'] ?? false;
-                
-                if ($productValuation >= (int)$confirmStarRange[0] && $productValuation <= (int)$confirmStarRange[1]) {
-                    if ($sendIfNoTextConfirm && empty($feedback->text)) {
+            $mood = $feedback->mood; //positive, negative, neutral
+        
+            Log::info("Sending feedback to Telegram: " . $feedback->id);
+            switch ($mode) {
+                case 'combined':
+                    // Combined mode: Automatically respond to positive, confirm negative
+                    if ($mood === 'positive') {
+                        $this->sendToWildberries($feedback, $groupId, $user);
+                    } else {
                         $this->sendToGroup($feedback, $groupId);
-                        continue;
-                    } elseif ($sendIfWithTextConfirm && !empty($feedback->text)) {
-                        $this->sendToGroup($feedback, $groupId);
-                        continue;
-                    } else{
-                        $this->sendToGroup($feedback, $groupId);
-                        continue; 
                     }
-                }
-            }
-    
-            // Check autosend settings
-            if ($autosendEnabled) {
-                if ($productValuation >= (int)$autosendStarRange[0] && $productValuation <= (int)$autosendStarRange[1]) {
-                    $sendIfNoText = $settings['autosend']['send_if_no_text'] ?? false;
-                    $sendIfWithText = $settings['autosend']['send_if_with_text'] ?? false;
-    
-                    if ($sendIfNoText && empty($feedback->text)) {
-                        $this->sendToWildberries($feedback, $groupId, $user->id);
-                    } elseif ($sendIfWithText && !empty($feedback->text)) {
-                        $this->sendToWildberries($feedback, $groupId, $user->id);
-                    } else{
-                       $this->sendToWildberries($feedback, $groupId, $user->id); 
+                    break;
+        
+                case 'auto_response':
+                    // Auto response to all feedbacks
+                    $this->sendToWildberries($feedback, $groupId, $user);
+                    break;
+        
+                case 'positive_response':
+                    // Respond to positive feedbacks (4-5 stars), send negative for manual response
+                    if ($productValuation >= 4) {
+                        $this->sendToWildberries($feedback, $groupId, $user);
+                    } else {
+                        $this->sendToGroup($feedback, $groupId);
                     }
-                    continue;
-                }
+                    break;
+        
+                case 'manual_confirmation':
+                    // Generate response and let the user confirm or modify
+                    $this->sendToGroup($feedback, $groupId);
+                    break;
+        
+                default:
+                    // Default to manual confirmation if no valid mode is found
+                    $this->sendToGroup($feedback, $groupId);
+                    break;
             }
-    
-            // Default action: send to group for manual confirmation if no other rule matches
-            $this->sendToGroup($feedback, $groupId);
         }
     }
 
-    protected function sendToWildberries($feedback, $groupId, $userId)
+    protected function sendToWildberries($feedback, $groupId, $user)
     {
         // Mock logic for sending feedback to Wildberries
         Log::info("Sending feedback to Wildberries: " . $feedback->id);
@@ -124,7 +131,9 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         $user->tokens = $user->tokens - 1;
         $user->save();
 
-        SendTelegramMessage::dispatch($groupId, "Ответ на вопрос {$feedback->id} был отправлен в WB автоматически", 'HTML', null);
+        $message = $this->formatMessage($feedback, 'Ответ недоступен, пожалуйста, нажмите кнопку "Другой"') . $this->suffixMessage;
+
+        SendTelegramMessage::dispatch($groupId, "Ответ на отзыв {$feedback->id} был отправлен в WB автоматически.\n\n" . $message, 'HTML', null);
         $feedback->save();
     }
 
@@ -134,7 +143,7 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         $questionKeyboard = new InlineKeyboardMarkup([
             [['text' => '🔄 Другой', 'callback_data' => "change_answer_{$question->id}"], ['text' => '✅Отправить', 'callback_data' => "accept_answer_{$question->id}"]],
         ]);
-        $message = $this->formatMessage($question, 'Ответ недоступен, пожалуйста, нажмите кнопку "Другой"');
+        $message = $this->formatMessage($question, 'Ответ недоступен, пожалуйста, нажмите кнопку "Другой"') . $this->suffixMessage;
         SendTelegramMessage::dispatch($groupId, $message, 'HTML', $questionKeyboard);
     }
 
@@ -156,8 +165,24 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         $productName = htmlspecialchars($question['productDetails']['productName']);
         $article = htmlspecialchars($question['productDetails']['imtId']);
         $questionText = htmlspecialchars($question['text']);
-        $generatedResponseText = htmlspecialchars($question['answer'] ?? $generatedResponse);
 
-        return "rid_$question->id\n\n<b>Дата:</b> $createdDate\n$supplierName\n<b>Артикул:</b> $article\n<b>📦 Товар:</b> $productName\n\n<b>💬 {$userName}:\n</b>$questionText\n<b>⭐ Оценка:</b> $question->productValuation\n\n<b>🤖 #Предлагаемый_ответ:\n\n</b><code>$generatedResponseText</code>";
+
+        
+        $generatedResponseText = htmlspecialchars($question['answer'] ?? $generatedResponse);
+        $mood = $question['mood'];
+        $moodText = match ($mood) {
+            'positive' => 'Позитивный',
+            'negative' => 'Негативный',
+            'neutral' => 'Нейтральный',
+            default => 'Неизвестно',
+        };
+        $moodEmoji = match ($mood) {
+            'positive' => '😊',
+            'negative' => '😡',
+            'neutral' => '😐',
+            default => '😐',
+        };
+
+        return "<b>Дата:</b> $createdDate\n$supplierName\n<b>Артикул:</b> $article\n<b>📦 Товар:</b> $productName\n\n<b>💬 {$userName}:\n</b>$questionText\n<b>⭐ Оценка:</b> $question->productValuation\n<b>{$moodEmoji} Настроение:</b> $moodText\n\n<b>🤖 #Предлагаемый_ответ:\n\n</b><code>$generatedResponseText</code>";
     }
 }
