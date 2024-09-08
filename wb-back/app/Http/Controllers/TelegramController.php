@@ -71,6 +71,12 @@ class TelegramController extends Controller
             Log::info("ChatMember", ['member' => 'GO!']);
             $bot->sendMessage($chatId, 'Pong new server');
         });
+        $bot->command('testcongrats', function ($message) use ($bot, $user) {
+            $chatId = $message->getChat()->getId();
+            $welcomeBot = new WelcomeBotController($bot);
+            $welcomeBot->handleCongratulations($chatId, 1);
+        });
+        
         $bot->command('start', function ($message) use ($welcomeBot, $user, $bot) {
            
             $chatId = $message->getChat()->getId();
@@ -217,8 +223,13 @@ class TelegramController extends Controller
 
             if ($cachedData) {
                 $messageId = $cachedData['messageId'] ?? null;
+                $isOnboarding = $cachedData['isOnboarding'] ?? null;
                 if($messageId){
-                    $welcomeBot->handleManageReviews($user->telegram_id, $cabinet->id, $messageId);
+                    if($isOnboarding){
+                        $welcomeBot->handleCongratulations($user->telegram_id, $cabinet->id, $messageId);
+                    } else{
+                        $welcomeBot->handleManageReviews($user->telegram_id, $cabinet->id, $messageId);
+                    }
                     Cache::forget("add_key_message_id_{$user->telegram_id}");
                 }
             }
@@ -264,7 +275,7 @@ class TelegramController extends Controller
         // The settings attribute is automatically cast to an array, so no need to decode it manually
         $settings = $cabinet->settings;
     
-        return isset($settings['group_chat_id']);
+        return array_key_exists('group_chat_id', $settings) ? $settings['group_chat_id'] : false;
     }
 
     protected function handleCallbackQuery($chatId, $data, $messageId, WarehouseBotController $warehouseBot, WelcomeBotController $welcomeBot, $user, $callbackQuery, $bot)
@@ -276,7 +287,7 @@ class TelegramController extends Controller
         } elseif (strpos($data, 'change_answer_') === 0) {
             Log::info('Change answer');
             $welcomeBot->handleInlineQuery($chatId, $data, $messageId);
-            $bot->answerCallbackQuery($callbackQuery->getId(), "У вас осталось токенов: {$user->tokens}", null);
+            $bot->answerCallbackQuery($callbackQuery->getId(), "У вас осталось отзывов: {$user->tokens}", null);
         } elseif (strpos($data, 'welcome_') === 0) {
             $welcomeBot->handleInlineQuery($chatId, $data, $messageId);
         } elseif (strpos($data, 'pay_') === 0) {
@@ -301,10 +312,10 @@ class TelegramController extends Controller
                     case 'collect_wb_feedback_api_key':
                         //Delete add key prompt message
                         $messageIdOriginal = $session['messageId'] ?? null; 
-                        if($messageIdOriginal)
-                            DeleteTelegramMessage::dispatch($chatId, $messageId, config('telegram.bot_token'));
+                        // if($messageIdOriginal)
+                            // DeleteTelegramMessage::dispatch($chatId, $messageIdOriginal, config('telegram.bot_token'));
 
-                        $this->setApiKey($chatId, $text, 'feedback', $bot, $messageId);
+                        $this->setApiKey($chatId, $text, 'feedback', $bot, $messageId, $messageIdOriginal);
                         break;
                     case 'collect_notification_expiration_date':
                         $warehouseBot->handleCustomDateInput($chatId, $text);
@@ -320,6 +331,26 @@ class TelegramController extends Controller
                         $messageIdOriginal = $session['messageId'] ?? null; 
                         if($cabinetId && $messageId)
                             $welcomeBot->handleCollectStarRangeConfirm($chatId, $text, $cabinetId, $messageIdOriginal, $messageId);
+                        break;
+                    case 'collect_brand_name':
+                        $messageIdOriginal = $session['messageId'] ?? null;
+                        $bot->deleteMessage($chatId, $messageId); 
+                        if($messageId)
+                            $welcomeBot->handleCollectBrandName($chatId, $text, $messageIdOriginal, $messageId);
+                        break;
+                    case 'collect_advertisement_message':
+                        $cabinetId = $session['cabinet_id'] ?? null;
+                        $messageIdOriginal = $session['messageId'] ?? null; 
+                        $bot->deleteMessage($chatId, $messageId); 
+                        if($cabinetId && $messageId)
+                            $welcomeBot->handleCollectAdvertisementMessage($chatId, $text, $cabinetId, $messageIdOriginal, $messageId);
+                        break;
+                    case 'collect_call_to_action':
+                        $cabinetId = $session['cabinet_id'] ?? null;
+                        $messageIdOriginal = $session['messageId'] ?? null;
+                        $bot->deleteMessage($chatId, $messageId); 
+                        if($cabinetId && $messageId)
+                            $welcomeBot->handleCollectCallToAction($chatId, $text, $cabinetId, $messageIdOriginal, $messageId);
                         break;
                     default:
                         Log::warning('Unknown action in session', ['action' => $session['action']]);
@@ -343,19 +374,19 @@ class TelegramController extends Controller
     {
         switch ($data) {
             case 'pay_100_tokens':
-                $this->sendInvoice($chatId, '100 токенов', 'Покупка 100 токенов', '100_tokens', 390, $messageId, $user);
+                $this->sendInvoice($chatId, '100 отзывов', 'Покупка 100 отзывов', '100_tokens', 390, $messageId, $user);
                 break;
             case 'pay_500_tokens':
-                $this->sendInvoice($chatId, '500 токенов', 'Покупка 500 токенов', '500_tokens', 1490, $messageId, $user);
+                $this->sendInvoice($chatId, '500 отзывов', 'Покупка 500 отзывов', '500_tokens', 1490, $messageId, $user);
                 break;
             case 'pay_1000_tokens':
-                $this->sendInvoice($chatId, '1000 токенов', 'Покупка 1000 токенов', '1000_tokens', 2290, $messageId, $user);
+                $this->sendInvoice($chatId, '1000 отзывов', 'Покупка 1000 отзывов', '1000_tokens', 2290, $messageId, $user);
                 break;
             case 'pay_5000_tokens':
-                $this->sendInvoice($chatId, '5000 токенов', 'Покупка 5000 токенов', '5000_tokens', 8490, $messageId, $user);
+                $this->sendInvoice($chatId, '5000 отзывов', 'Покупка 5000 отзывов', '5000_tokens', 8490, $messageId, $user);
                 break;
             case 'pay_10000_tokens':
-                $this->sendInvoice($chatId, '10000 токенов', 'Покупка 10000 токенов', '10000_tokens', 12990, $messageId, $user);
+                $this->sendInvoice($chatId, '10000 отзывов', 'Покупка 10000 отзывов', '10000_tokens', 12990, $messageId, $user);
                 break;
         }
     }
@@ -377,17 +408,36 @@ class TelegramController extends Controller
         // $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
     }
 
-    protected function setApiKey($chatId, $apiKey, $service, Client $bot, $messageId)
+    protected function setApiKey($chatId, $apiKey, $service, Client $bot, $messageId, $messageIdOriginal)
     {
         $user = Auth::user();
     
         $cabinetName = $this->checkApiKey($apiKey, $chatId, $bot) ?? $user->id;
         // Step 1: Create or find a cabinet
         // $cabinetName = 'Кабинет '.$user->name; // You can set this dynamically based on user input or other criteria
-        $cabinet = $user->cabinets()->firstOrCreate(
-            ['name' => $cabinetName], // Find or create a cabinet with the given name
-            ['settings' => json_encode([])] // Default settings can be an empty array or any other default settings
-        );
+        // $cabinet = $user->cabinets()->firstOrCreate(
+        //     ['name' => $cabinetName], // Find or create a cabinet with the given name
+        //     ['settings' => []] // Default settings can be an empty array or any other default settings
+        // );
+
+        // Find the first cabinet for the user or create a new one if none exists
+        $cabinet = $user->cabinets()->first();
+    
+        if ($cabinet) {
+            // Update the cabinet name if it exists
+            $cabinet->name = $cabinetName;
+            $cabinet->save();
+        } else {
+            // Create a new cabinet with the provided name and default settings
+            $cabinet = $user->cabinets()->create([
+                'name' => $cabinetName,
+                'settings' => [], // Default settings
+            ]);
+        }
+
+        //get group chat id
+        $groupChatId = $this->getUserCabinetGroupChatId($user);
+        
     
         // Step 2: Update or create the API key bound to both user and cabinet
         $cabinet->apiKeys()->updateOrCreate(
@@ -399,12 +449,21 @@ class TelegramController extends Controller
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
         ]);
-        $message = "Ваш API-ключ для службы {$service} сохранен в кабинете '{$cabinet->name}'. Теперь вы можете использовать команды Wildberries Bot. 🚀";
-        $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
+        // $message = "Ваш API-ключ для службы {$service} сохранен в кабинете '{$cabinet->name}'. Теперь вы можете использовать команды Wildberries Bot. 🚀";
+        // $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
         //Удалить ключ из сообщения для безопасности
-        DeleteTelegramMessage::dispatch($chatId, $messageId, config('telegram.bot_token')); 
+        // DeleteTelegramMessage::dispatch($chatId, $messageId, config('telegram.bot_token')); 
+        $bot->deleteMessage($chatId, $messageId);
         // Step 4: Clear the session cache after setting the key
         $this->clearSession($chatId);
+
+        $welcomeBot = new WelcomeBotController($bot);
+        if(!$groupChatId){
+            $welcomeBot->handleAddGroup($chatId, $cabinet->id, $messageIdOriginal, 'onboarding');
+
+        } else{
+            $welcomeBot->handleCongratulations($chatId, $cabinet->id, $messageIdOriginal);
+        }
     }
 
     protected function checkApiKey($apiKey, $chatId, Client $bot)
@@ -440,13 +499,6 @@ class TelegramController extends Controller
     }
     
 
-    //legacy delete later
-    protected function processCallbackData($chatId, $text, Client $bot, $callbackQuery)
-    {
-       
-    }
-
-    
     protected function getUpdateDetails($update)
     {
         return [

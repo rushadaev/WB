@@ -25,7 +25,10 @@ class User extends Authenticatable
         'password',
         'telegram_id',
         'subscription_until',
-        'is_paid'
+        'is_paid',
+        'tokens',
+        'gifted',
+        'gifted_2',
     ];
 
     /**

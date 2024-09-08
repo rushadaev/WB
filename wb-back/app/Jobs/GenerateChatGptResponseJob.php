@@ -43,23 +43,49 @@ class GenerateChatGptResponseJob implements ShouldQueue
                     ['role' => 'system', 'content' => 'Ты помощник продавца в маркеплейсе Wildberries. Твоя задача давать максимально сгалаженные ответы на вопросы и отзывы под товарами. Твои ответы будут вставлены на сайте. Тебя зовут Алексей. Вопрос пользователя:'],
                     ['role' => 'user', 'content' => $this->feedback->text],
                 ],
+                'response_format' => [
+                    'type' => 'json_schema',
+                    'json_schema' => [
+                        'name' => 'feedback_response',
+                        'strict' => true,
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'message' => [
+                                    'type' => 'string',
+                                ],
+                                'mood' => [
+                                    'type' => 'string',
+                                    'enum' => ['positive', 'negative'],
+                                ],
+                            ],
+                            'additionalProperties' => false,
+                            'required' => ['message', 'mood'],
+                        ],
+                    ],
+                ],
             ]);
-
-            $answer = $response['choices'][0]['message']['content'] ?? null;
-            if(!$answer){
+            \Log::info('Request to Chat GPT', ['feedback_id' => $this->feedback->id, 'text' => $this->feedback->text]);
+            
+            // Ensure response exists and is structured as expected
+            $feedbackResponse = json_decode($response['choices'][0]['message']['content'] ?? '', true);
+            \Log::info('Response from Chat GPT', ['feedback_id' => $this->feedback->id, 'response' => $feedbackResponse]);
+            
+            if (!$feedbackResponse || !isset($feedbackResponse['message'], $feedbackResponse['mood'])) {
                 return;
             }
-            // Update feedback with the response
+            
+            // Validate the mood is one of the allowed values
+            $allowedMoods = ['positive', 'negative'];
+            $mood = in_array($feedbackResponse['mood'], $allowedMoods) ? $feedbackResponse['mood'] : 'neutral';
+            
+            // Update feedback with the structured response
             $this->feedback->update([
-                'answer' => $answer,
+                'answer' => $feedbackResponse['message'],
                 'status' => 'ready_to_send',
+                'mood' => $mood,
             ]);
             
-            // Decrease user's token count after success
-            $user->tokens = $user->tokens - 1;
-            $user->save();
-
-            Log::info('Request to Chat GPT succesfull', ['feedback_id' => $this->feedback->id, 'answer' => $answer]);
         } catch (\Exception $e) {
             Log::error('Error fetching ChatGPT response: ' . $e->getMessage());
         }

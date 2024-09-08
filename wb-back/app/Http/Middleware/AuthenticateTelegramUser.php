@@ -46,12 +46,12 @@ class AuthenticateTelegramUser
         );
 
         //First login basically
-        if (is_null($user->subscription_until)) {
-            $user->subscription_until = now()->addDays(3);
-            $user->save();
-            $message = "#подписка\n@{$username} подписался на бота";
-            SendUserNotificationMessage::dispatch($message, 'HTML');
-        }
+        // if (is_null($user->subscription_until)) {
+        //     $user->subscription_until = now()->addDays(3);
+        //     $user->save();
+        //     $message = "#подписка\n@{$username} подписался на бота";
+        //     SendUserNotificationMessage::dispatch($message, 'HTML');
+        // }
 
         Auth::login($user);
 

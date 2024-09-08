@@ -35,6 +35,7 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
     public function handle(TelegramService $telegramService): void
     {
         $cabinet = Cabinet::find($this->cabinetId);
+        $user = $cabinet->user;
         if (!$cabinet) {
             Log::error('Cabinet not found: ' . $this->cabinetId);
             return;
@@ -44,6 +45,7 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         $groupId = $settings['group_chat_id'] ?? null;  // Default to null if not set
     
         if (!$groupId) {
+            $this->sendReminderToSetupGroup($cabinet->user->telegram_id, $this->cabinetId);
             Log::error('Group chat ID not set for cabinet: ' . $this->cabinetId);
             return;
         }
@@ -95,11 +97,11 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
                     $sendIfWithText = $settings['autosend']['send_if_with_text'] ?? false;
     
                     if ($sendIfNoText && empty($feedback->text)) {
-                        $this->sendToWildberries($feedback, $groupId);
+                        $this->sendToWildberries($feedback, $groupId, $user->id);
                     } elseif ($sendIfWithText && !empty($feedback->text)) {
-                        $this->sendToWildberries($feedback, $groupId);
+                        $this->sendToWildberries($feedback, $groupId, $user->id);
                     } else{
-                       $this->sendToWildberries($feedback, $groupId); 
+                       $this->sendToWildberries($feedback, $groupId, $user->id); 
                     }
                     continue;
                 }
@@ -110,13 +112,18 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         }
     }
 
-    protected function sendToWildberries($feedback, $groupId)
+    protected function sendToWildberries($feedback, $groupId, $userId)
     {
         // Mock logic for sending feedback to Wildberries
         Log::info("Sending feedback to Wildberries: " . $feedback->id);
 
         // Update feedback status to 'sent'
-        // $feedback->status = 'sent';
+        $feedback->status = 'sent';
+
+        //Decrease user tokens
+        $user->tokens = $user->tokens - 1;
+        $user->save();
+
         SendTelegramMessage::dispatch($groupId, "Ответ на вопрос {$feedback->id} был отправлен в WB автоматически", 'HTML', null);
         $feedback->save();
     }
@@ -126,10 +133,18 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         //$generatedResponse = $this->generateGptResponse($question['text'].'Товар:'.$question['productDetails']['productName']);
         $questionKeyboard = new InlineKeyboardMarkup([
             [['text' => '🔄 Другой', 'callback_data' => "change_answer_{$question->id}"], ['text' => '✅Отправить', 'callback_data' => "accept_answer_{$question->id}"]],
-            [['text' => '💩Удалить вопрос', 'callback_data' => "delete_question_{$question->id}"]],
         ]);
         $message = $this->formatMessage($question, 'Ответ недоступен, пожалуйста, нажмите кнопку "Другой"');
-        SendTelegramMessage::dispatch($groupId, $message, 'HTML', $questionKeyboard); 
+        SendTelegramMessage::dispatch($groupId, $message, 'HTML', $questionKeyboard);
+    }
+
+    protected function sendReminderToSetupGroup($chatId, $cabinetId)
+    {
+        $message = 'Пожалуйста, настройте групповой чат для отправки отзывов';
+        $keyboard = new InlineKeyboardMarkup([
+            [['text' => '🔧 Настроить', 'callback_data' => 'welcome_add_group_' . $cabinetId]],
+        ]);
+        SendTelegramMessage::dispatch($chatId, $message, 'HTML', $keyboard);
     }
 
     protected function formatMessage($question, $generatedResponse)

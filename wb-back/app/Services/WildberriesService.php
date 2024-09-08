@@ -168,6 +168,37 @@ class WildberriesService
         throw new \Exception($response['errorText']);
     }
 
+    public function getCountUnansweredFeedbacks()
+    {
+
+        try{
+            $response = Http::withHeaders([
+                'Authorization' => $this->apiKey,
+            ])->get($this->apiUrl . '/feedbacks/count-unanswered');
+            if($response->successful()){
+                return $response->json();
+            } else {
+                Log::error('Wildberries API error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                return [
+                    'error' => true,
+                    'errorText' => 'API request failed',
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Wildberries API exception', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return [
+                'error' => true,
+                'errorText' => 'An error occurred while making the API request',
+            ];
+        }
+    }
+
     protected function handleInvalidApiKey()
     {
         // Remove the invalid API key from the user

@@ -24,6 +24,7 @@ class CreateFeedbacksTable extends Migration
             $table->string('color')->nullable(); // Color of the product
             $table->integer('subjectId'); // Subject ID from the feedback
             $table->string('subjectName')->nullable(); // Name of the subject
+            $table->enum('mood', ['positive', 'neutral', 'negative'])->nullable(); // Mood of the feedback
             $table->timestamps(); // Created and updated timestamps
         });
     }

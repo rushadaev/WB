@@ -67,6 +67,13 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote')->everyThreeHours();
 
 
+Artisan::command('feedback_fetch', function () {
+    $cabinets = Cabinet::all();
+    foreach ($cabinets as $cabinet) {
+        FetchFeedbacksJob::dispatch($cabinet->id);
+    }
+})->purpose('Feedback fetch')->hourly();
+
 Artisan::command('feedback_send', function () {
     $cabinets = Cabinet::all();
     foreach ($cabinets as $cabinet) {

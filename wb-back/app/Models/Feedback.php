@@ -10,7 +10,7 @@ class Feedback extends Model
     
     protected $fillable = [
         'cabinet_id', 'feedback_id', 'imtId', 'nmId', 'subjectId', 'userName', 'text', 'productValuation',
-        'createdDate', 'updatedDate', 'answer', 'status', 'productDetails', 'photoLinks', 'wasViewed'
+        'createdDate', 'updatedDate', 'answer', 'status', 'productDetails', 'photoLinks', 'wasViewed', 'mood'
     ];
 
     protected $casts = [

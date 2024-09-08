@@ -6,6 +6,7 @@ use TelegramBot\Api\Client;
 use App\Models\User;
 use App\Http\Controllers\FeedbackAutoSendController;
 use App\Http\Controllers\FeedbackConfirmController;
+use App\Http\Controllers\FeedbackOnboardingController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use TelegramBot\Api\Types\ReplyKeyboardMarkup;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use App\Traits\UsesWildberriesSupplies;
+use App\Traits\UsesWildberries;
 use App\Jobs\DeleteTelegramMessage;
 use App\Models\Cabinet;
 use Carbon\Carbon;
@@ -26,6 +28,7 @@ use OpenAI\Laravel\Facades\OpenAI;
 class WelcomeBotController extends Controller
 {
     use UsesWildberriesSupplies;
+    use UsesWildberries;
     
     public function __construct(
         protected Client $bot,
@@ -46,62 +49,135 @@ class WelcomeBotController extends Controller
 
     public function handleStart($chatId, $messageId = null)
     {
-        $message = "🎉 Добро пожаловать!\n
+        $message = "🎉 Добро пожаловать в умного помощника для вашего бизнеса!
 
-🍓 ✧ WB - Автоответ ✧ - умный помощник для вашего бизнеса.\n
+Привет! Я helpy bot — ваш супер помощник для автоматизации ответов на отзывы покупателей на Wildberries и Ozon. 
 
-🤖 В бота внедрён искусственный интеллект, который обучен максимально эффективно обрабатывать отзывы покупателей.\n
+Я помогу вам сэкономить время и улучшить связь с вашими клиентами, автоматизируя работу с отзывами.
 
-👤 Создает индивидуальный ответ, учитывая конкретные пожелания или проблемы клиента.\n
+Я работаю на базе chatGPT и генерирую уникальные, персонализированные ответы учитывая конкретные пожелания или проблемы клиента
 
-✨ Ответы совершенно не отличается от ответов человека!\n
+Наша миссия 🤞
+Мы верим, что селлеры должны тратить свое время на развитие и масштабирование бизнеса, а не на рутинные задачи. 
 
-👉 Бот поддерживает Wildberries\n
-
-✅ Нам доверяют более 100 крупных поставщиков!";
-        $keyboard = new InlineKeyboardMarkup([
-            [['text' => 'Продолжить ➡️', 'callback_data' => 'welcome_advertisement']],
-            [['text' => '👤 Перейти в кабинет ', 'callback_data' => 'welcome_cabinet']],
-        ]);
+Именно поэтому я, helpy bot, беру на себя всю рутину, чтобы вы могли сосредоточиться на главном — росте вашего бизнеса.";
+        
+        $user = Auth::user();
+        $cabinet = $user->cabinets()->exists();
+        if(!$cabinet){
+            $keyboard = new InlineKeyboardMarkup([
+                [['text' => 'Продолжить ➡️', 'callback_data' => 'welcome_advertisement']],
+            ]);
+        }
+        else{
+            $this->handleCabinet($chatId, $messageId);
+            return;
+            $keyboard = new InlineKeyboardMarkup([
+                [['text' => 'Продолжить ➡️', 'callback_data' => 'welcome_advertisement']],
+                [['text' => '👤 Перейти в кабинет ', 'callback_data' => 'welcome_cabinet']],
+            ]);
+        }
     
+        Cache::forget("session_{$chatId}");
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
     }
 
     public function handleAdvertisement($chatId, $messageId = null)
     {
-        $message = "🤔 Почему Вам стоит подключить бота?
+        $message = "🤔 Почему вам стоит подключить helpy bot?
 
-Отзывы серьезно влияют на решение клиента при выборе товара. Клиенты намного положительнее относятся к продавцу и его продукту, если продавец активно работает с отзывами.
+Ваши клиенты принимают решения о покупке, основываясь на отзывах. Продавец, который активно и качественно взаимодействует с отзывами, вызывает больше доверия и лояльности.
 
-Но как успевать отвечать, делать каждый ответ уникальным и при этом избежать путаницы в указываемых рекомендациях?
+Но как обеспечить индивидуальный подход к каждому отзыву, не теряя времени?
+Шаблонные ответы могут помочь, но они лишены той индивидуальности, которая важна для вашего бренда.
 
-И хотя шаблонные ответы справляются с частью  задач, их основной недостаток - отсутствие индивидуальности.
+Что я умею?
 
-🍓 WB - Автоответ все это умеет!
+— Я создаю уникальные и персонализированные ответы на отзывы ваших клиентов.
+— Вы можете выбрать, какие отзывы я буду обрабатывать автоматически, а какие передам вам на подтверждение.
+— Я умею встраивать рекламные сообщения в ответы на отзывы, чтобы помочь вам увеличить продажи.
+— Я анализирую не только кол-во звезд в отзыве, но и сам отзыв.
 
-🔄 Анализирует не только количество звезд в отзыве, но и текст комментария.
+Почему я?
 
-🛍 Уместно рекомендует товары, создавая связанные и интересные предложения.
+— Я быстро и безопастно интегрируюсь с вашими кабинетами WB.
+— Вы можете настраивать меня так, как вам удобно.
+— Моя “служба поддержки” всегда на связи, готова помочь вам настроить и использовать мои возможности на 100%.
 
-⚙️ Может сразу отправлять ответы или только после Вашего подтверждения.
+💼 Мне доверяют уже более 150 успешных продавцов, которые с моей помощью улучшили свою репутацию и увеличили продажи.
 
-🖋 Умеет обращаться по имени, добавлять подпись к каждому ответу, благодарить за фото и многое другое!";
+👉 Давайте начнем прямо сейчас! Я дарю вам 50 бесплатных ответов на отзывы — попробуйте все мои возможности и убедитесь в их эффективности ❤️";
+        $user = Auth::user();
+        $cabinet = $user->cabinets()->first();
+        if(!$user->gifted){
+            $keyboard = new InlineKeyboardMarkup([
+                [['text' => '🎁 Получить подарок', 'callback_data' => 'welcome_gift']],
+                [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
+            ]);
+        } elseif(!$cabinet){
+            $keyboard = new InlineKeyboardMarkup([
+                [['text' => 'Далее ➡️', 'callback_data' => 'welcome_start_onboarding']],
+                [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
+            ]);
+        }else{
+            $keyboard = new InlineKeyboardMarkup([
+                [['text' => '👤 Перейти в кабинет ', 'callback_data' => 'welcome_cabinet']],
+                [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
+            ]);
+        }
+        
+    
+        $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
+    }
+
+    public function handleGift($chatId, $messageId = null)
+    {
+        
+        $user = Auth::user();
+        $message = "";
+        if(!$user->gifted){
+            $user->update(['tokens' => $user->tokens + 50, 'gifted' => true]);
+            $message = "Я добавил вам на баланс 50 ответов🎁";
+        }
+        
+        //We need to add only once so we will ad a column in the user table to check if the user has already received the gift
+        $message .= "
+А теперь давайте настроим режим ответов на отзывы 👇
+
+Настройка займет всего пару минут, и это максимально просто, а в конце я подарю вам еще 20 бесплатных ответов 🤞";
         $keyboard = new InlineKeyboardMarkup([
-            [['text' => '👤 Перейти в кабинет', 'callback_data' => 'welcome_cabinet']],
+            [['text' => '🏁 Начать', 'callback_data' => 'welcome_start_onboarding']],
             [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
         ]);
     
-        $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
+        $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
+    }
+
+    public function handleOnboarding($chatId, $messageId = null)
+    {
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->setupBrand($chatId, $messageId);
+    }
+
+    public function handleCollectBrandName($chatId, $text, $messageIdOriginal, $messageId){
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->setBrandName($chatId, $text, $messageIdOriginal, $messageId);
     }
 
     public function handleCabinet($chatId, $messageId = null)
     {
         $user = Auth::user();
         $keysCount = $user->apiKeysCount();
+        $cabinet = $user->cabinets()->first();
+        $tokens = $user->tokens;
+        $feedbacksCount = Feedback::where('cabinet_id', $cabinet->id)->count() ?? 0;
         $message = "🍓 Личный кабинет
 
 · ID: {$user->telegram_id}
-· Кабинетов: {$keysCount}";
+· Ответов осталось: {$tokens}
+· Обработано отзывов: {$feedbacksCount}
+
+";
 
         // Default keyboard buttons
         $keyboardButtons = [
@@ -124,21 +200,20 @@ class WelcomeBotController extends Controller
     {
         $user = Auth::user();
         $keysCount = $user->apiKeysCount();
-        $message = "💳 Баланс: 0 токенов
+        $message = "💳 Баланс: 0 отзывов
 
 · 1 токен = 1 генерация ответа
 · Токены будут расходоваться на все подключенные кабинеты, не сгорают.
 
-✅ Можно оплатить по счету через поддержку. Отправьте ИНН компании и необходимое кол-во токенов.
+✅ Можно оплатить по счету через поддержку. Отправьте ИНН компании и необходимое кол-во отзывов.
 
 ℹ️ Оплачивая любой пакет, вы подверждаете согласие с офертой.";
     $keyboard = new InlineKeyboardMarkup([
-        [['text' => '100 токенов -> 390р', 'callback_data' => 'pay_100_tokens']],
-        [['text' => '500 токенов -> 1490р', 'callback_data' => 'pay_500_tokens']],
-        [['text' => '1000 токенов -> 2290р', 'callback_data' => 'pay_1000_tokens']],
-        [['text' => '5000 токенов -> 8490р', 'callback_data' => 'pay_5000_tokens']],
-        [['text' => '10000 токенов -> 12990р', 'callback_data' => 'pay_10000_tokens']],
-        [['text' => '💳 Оплата по счету', 'url' => 'https://your-payment-url.com']],
+        [['text' => '100 отзывов -> 390р', 'callback_data' => 'pay_100_tokens']],
+        [['text' => '500 отзывов -> 1490р', 'callback_data' => 'pay_500_tokens']],
+        [['text' => '1000 отзывов -> 2290р', 'callback_data' => 'pay_1000_tokens']],
+        [['text' => '5000 отзывов -> 8490р', 'callback_data' => 'pay_5000_tokens']],
+        [['text' => '10000 отзывов -> 12990р', 'callback_data' => 'pay_10000_tokens']],
         [['text' => '🏠 Обратно в кабинет', 'callback_data' => 'welcome_cabinet']]
     ]);
         
@@ -174,17 +249,20 @@ class WelcomeBotController extends Controller
         $user = Auth::user();
         $apiKeys = $user->apiKeys;
     
-        $message = "🍓 Подключите кабинет по токену (его может получить только владелец магазина).
+        $url = '<a href="https://seller.wildberries.ru/supplier-settings/access-to-api">тут</a>';
+        $message = "Введите свой API ключ WB, его можно найти {$url}
 
-1️⃣ Зайдите в Личный кабинет WB -> Настройки -> Доступ к API (ссылка https://seller.wildberries.ru/supplier-settings/access-to-api).
+1️⃣ Перейдите в личный кабинет WB → Настройки → Доступ к API
 
-2️⃣ Нажмите кнопку [+ Создать новый токен] и введите любое имя токена (например WbAutoReplyBot).
+2️⃣ Нажмите кнопку «Создать новый токен» и введите название API ключа (например helpybot).
 
-3️⃣ Выберите тип \"Вопросы и отзывы\".
+3️⃣ Выберите тип доступа «Вопросы и отзывы».
 
-4️⃣ Нажмите [Создать токен] и отправте его в этот чат.";
+4️⃣ Нажмите «Создать токен» и отправьте его мне.
+
+Не переживайте, я не имею доступа к вашим личным или финансовым данным. Я только получаю информацию по отзывам.";
         if (!Gate::forUser($user)->allows('accessService', 'feedback')) {
-            $updatedMessage = $this->sendOrUpdateMessage($chatId, $messageId, $message, null);
+            $updatedMessage = $this->sendOrUpdateMessage($chatId, $messageId, $message, null, 'HTML');
             Cache::put("session_{$user->telegram_id}", ['action' => 'collect_wb_feedback_api_key', 'messageId' => $updatedMessage->getMessageId()], 300); // Cache for 5 minutes
             return false;
         }
@@ -192,7 +270,44 @@ class WelcomeBotController extends Controller
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '👤 Обратно в кабинет', 'callback_data' => 'welcome_cabinet']] 
         ]);
+        $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
+    }
+
+    public function handleCongratulations($chatId, $cabinetId, $messageId = null)
+    {
+        $cabinet = Cabinet::find($cabinetId);
+        $user = $cabinet->user;
+
+        $apiKey = $cabinet->getFeedbackApiKey();
+        $feedbacksCount = $this->useWildberries($apiKey, $user)->getCountUnansweredFeedbacks();
+        //['data']['countUnanswered']
+        $unansweredFeedbacks = $feedbacksCount['data']['countUnanswered'] ?? 0;
+
+        $message = "";
+        if(!$user->gifted_2){
+            $user->update(['tokens' => $user->tokens + 20, 'gifted_2' => true]);
+            $message = "Я добавил вам на баланс 20 ответов🎁";
+        }
+        $message .= "Поздравляю, настройка завершена!
+
+Я обнаружил, что у вас есть {$unansweredFeedbacks} отзывов в вашем кабинете.
+
+У вас есть два варианта:
+
+	1.	Ответить на текущие неотвеченные отзывы: Я могу сразу же сгенерировать и отправить ответы на 50 из этих отзывов.
+	2.	Начать работу с новыми отзывами: Я буду автоматически создавать и отправлять ответы на все новые отзывы, которые поступят.
+
+Как вы хотите поступить? Выберите наиболее подходящий вариант, и я начну работать!";
+
+        $keyboard = new InlineKeyboardMarkup([
+            [['text' => "🚀 Ответить на {$unansweredFeedbacks} неотвеченных", 'callback_data' => 'welcome_set_start_mode_all_' . $cabinetId]],
+            [['text' => '📝 Начать с новых отзывов', 'callback_data' => 'welcome_set_start_mode_new_' . $cabinetId]],
+            [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']]
+        ]);
+
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
+
+
     }
 
     public function handleManageCabinet($chatId, $messageId = null)
@@ -207,8 +322,8 @@ class WelcomeBotController extends Controller
 
         // Step 3: Create an inline keyboard for managing the cabinet
         $keyboard = new InlineKeyboardMarkup([
+            [['text' => '🛠️ Общие настройки', 'callback_data' => "welcome_start_onboarding"]],
             [['text' => '⚙️ Настроить отзывы', 'callback_data' => "welcome_manage_reviews_{$cabinetId}"]],
-            [['text' => '⚙️ Настроить вопросы', 'callback_data' => "welcome_manage_questions_{$cabinetId}"]],
             [['text' => '❌ Удалить кабинет', 'callback_data' => "welcome_delete_cabinet_{$cabinetId}"]],
             [['text' => '🔙 Назад', 'callback_data' => 'welcome_cabinet']]
         ]);
@@ -227,6 +342,8 @@ class WelcomeBotController extends Controller
             'welcome_cabinet_list' => 'handleCabinetList',
             'welcome_add_key' => 'handleAddKey',
             'welcome_setup_cabinet' => 'handleManageCabinet',
+            'welcome_gift' => 'handleGift',
+            'welcome_start_onboarding' => 'handleOnboarding',
         ];
         switch (true) {
             case isset($mapping[$data]):
@@ -290,12 +407,81 @@ class WelcomeBotController extends Controller
                 $setting = str_contains($data, 'confirm') ? 'confirm_before_sending' : (str_contains($data, 'recommend') ? 'recommend_products' : 'enabled');
                 $this->handleToggleSetup($chatId, $cabinetId, $setting, $messageId);
                 break;
+            case strpos($data, 'welcome_handle_mode_') === 0:
+                $cabinetId = str_replace('welcome_handle_mode_', '', $data);
+                $this->handleModeSetup($chatId, $cabinetId, $messageId);
+                break;
+            case strpos($data, 'welcome_set_mode_') === 0:
+                $mode_and_cabinet_id = str_replace('welcome_set_mode_', '', $data);
+                $this->handleSetMode($chatId, $mode_and_cabinet_id, $messageId);
+                break;
+            case strpos($data, 'welcome_skip_advertisement_message_') === 0:
+                $cabinetId = str_replace('welcome_skip_advertisement_message_', '', $data);
+                $this->handleSkipAdvertisementMessage($chatId, $cabinetId, $messageId);
+                break;
+            case strpos($data, 'welcome_skip_call_to_action_') === 0:
+                $cabinetId = str_replace('welcome_skip_call_to_action_', '', $data);
+                $this->handleSkipCallToAction($chatId, $cabinetId, $messageId);
+                break;    
+            case strpos($data, 'welcome_set_start_mode_all_') === 0:
+                $cabinetId = str_replace('welcome_set_start_mode_all_', '', $data);
+                $this->handleSetStartMode($chatId, $cabinetId, $messageId, 'all');
+                break;
+            case strpos($data, 'welcome_set_start_mode_new_') === 0:
+                $cabinetId = str_replace('welcome_set_start_mode_new_', '', $data);
+                $this->handleSetStartMode($chatId, $cabinetId, $messageId, 'new');
+                break;
+            case strpos($data, 'welcome_add_group_') === 0:
+                $cabinetId = str_replace('welcome_add_group_', '', $data);
+                $this->handleAddGroup($chatId, $cabinetId, $messageId);
+                break;
         
             default:
                 return response()->json(['status' => 'success'], 200);
         }
     
         return response()->json(['status' => 'success'], 200);
+    }
+
+    public function handleModeSetup($chatId, $cabinetId, $messageId = null)
+    {
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->setupMode($chatId, $messageId, $cabinetId);
+    }
+
+    public function handleSetMode($chatId, $mode_and_cabinet_id, $messageId = null)
+    {
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->setMode($chatId, $mode_and_cabinet_id, $messageId);
+    }
+
+    public function handleSetStartMode($chatId, $cabinetId, $messageId = null, $mode)
+    {
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->setStartMode($chatId, $cabinetId, $messageId, $mode);
+    }
+
+    public function handleCollectAdvertisementMessage($chatId, $text, $cabinetId, $messageIdOriginal, $messageId)
+    {
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->setAdvertisementMessage($chatId, $text, $cabinetId, $messageIdOriginal, $messageId);
+    }
+
+    public function handleCollectCallToAction($chatId, $text, $cabinetId, $messageIdOriginal, $messageId)
+    {
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->setCallToAction($chatId, $text, $cabinetId, $messageIdOriginal, $messageId);
+    }
+
+    public function handleSkipAdvertisementMessage($chatId, $cabinetId, $messageId = null)
+    {
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->skipAdvertisementMessage($chatId, $cabinetId, $messageId);
+    }
+    public function handleSkipCallToAction($chatId, $cabinetId, $messageId = null)
+    {
+        $feedbackOnboardingController = new FeedbackOnboardingController($this->bot);
+        $feedbackOnboardingController->skipCallToAction($chatId, $cabinetId, $messageId);
     }
 
     //Настройки отзывов
@@ -325,7 +511,7 @@ class WelcomeBotController extends Controller
             if ($settings['enabled'] ?? false) {
                 // If the bot is enabled, show all options
                 $keyboard = new InlineKeyboardMarkup([
-                    [['text' => ($settings['confirm_before_sending'] ?? false) ? '✅ Подтверждение включено' : '❌ Подтверждение отключено', 'callback_data' => "welcome_feedback_settings_confirm_setup_$cabinet->id"]],
+                    [['text' => ($settings['confirm_before_sending']['enabled'] ?? false) ? '✅ Подтверждение включено' : '❌ Подтверждение отключено', 'callback_data' => "welcome_feedback_settings_confirm_setup_$cabinet->id"]],
                     [['text' => ($settings['autosend']['enabled'] ?? false) ? '✅ Настройка автоотправки' : '❌ Настройка автоотправки', 'callback_data' => "welcome_feedback_settings_autosend_setup_$cabinet->id"]],
                     [['text' => ($settings['recommend_products'] ?? false) ? '✅ Рекомендации включены' : '❌ Рекомендации отключены', 'callback_data' => "welcome_feedback_settings_recommend_$cabinet->id"]],
                     [['text' => ($settings['enabled'] ?? false) ? '✅ Бот включен' : '❌ Бот выключен', 'callback_data' => "welcome_feedback_settings_enabled_$cabinet->id"]],
@@ -358,6 +544,33 @@ class WelcomeBotController extends Controller
         // Send or update the message with the instructions and options
         $updatedMessage = $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
         Cache::put("add_key_message_id_{$user->telegram_id}", ['action' => 'add_key', 'messageId' => $updatedMessage->getMessageId()], 300); // Cache for 5 minutes
+    }
+    
+    public function handleAddGroup($chatId, $cabinetId, $messageId = null, $isOnboarding = false)
+    {
+        $user = Auth::user();
+        $cabinet = Cabinet::findOrfail($cabinetId);
+
+        // Generate a unique command for adding the bot to the chat
+        $uniqueCommand = 'AddReviews_' . $cabinetId;
+
+        $message = "Чтобы включить автоматические ответы, нужно подключить чат.
+        1️⃣ Создайте чат
+        2️⃣ Нажмите на кнопку снизу и выберите нужный чат
+        3️⃣ Если бот просит ввести команду, отправьте в чат <code>/start $uniqueCommand</code> (нажмите для копирования)";
+    
+        $botUsername = 'wbhelpyfb_bot';
+        $link = "https://t.me/{$botUsername}?startgroup=true";
+        $keyboard = new InlineKeyboardMarkup([
+            [[
+                'text' => '+ Добавить чат',
+                'url' => $link 
+            ]],
+            [['text' => '🔙 Назад', 'callback_data' => 'welcome_setup_cabinet']]
+        ]);
+        // Send or update the message with the instructions and options
+        $updatedMessage = $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
+        Cache::put("add_key_message_id_{$user->telegram_id}", ['action' => 'add_key', 'messageId' => $updatedMessage->getMessageId(), 'isOnboarding' => $isOnboarding], 300); // Cache for 5 minutes 
     }
 
     protected function handleManageQuestions($chatId, $cabinetId, $messageId = null)
@@ -544,7 +757,6 @@ class WelcomeBotController extends Controller
 
         $questionKeyboard = new InlineKeyboardMarkup([
             [['text' => '🔄 Другой', 'callback_data' => "change_answer_{$question->id}"], ['text' => '✅Отправить', 'callback_data' => "accept_answer_{$question->id}"]],
-            [['text' => '💩Удалить вопрос', 'callback_data' => "delete_question_{$question->id}"]],
         ]);
 
 
@@ -607,9 +819,6 @@ class WelcomeBotController extends Controller
                 'status' => 'ready_to_send',
             ]);
             
-            // Decrease user's token count after success
-            $user->tokens = $user->tokens - 1;
-            $user->save();
 
             return $answer;
 
