@@ -49,6 +49,10 @@ class WelcomeBotController extends Controller
 
     public function handleStart($chatId, $messageId = null)
     {
+
+        Cache::forget("session_{$chatId}");
+        Cache::forget("add_key_message_id_{$chatId}");
+
         $message = "🎉 Добро пожаловать в умного помощника для вашего бизнеса!
 
 Привет! Я helpy bot — ваш супер помощник для автоматизации ответов на отзывы покупателей на Wildberries и Ozon. 
@@ -161,6 +165,10 @@ class WelcomeBotController extends Controller
 
     public function handleCabinet($chatId, $messageId = null)
     {
+
+        Cache::forget("session_{$chatId}");
+        Cache::forget("add_key_message_id_{$chatId}");
+        
         $user = Auth::user();
         $keysCount = $user->apiKeysCount();
         $cabinet = $user->cabinets()->first();
@@ -753,11 +761,19 @@ class WelcomeBotController extends Controller
 
         if ($cachedData) {
             $messageId = $cachedData['messageId'] ?? null;
+            $isOnboarding = $cachedData['isOnboarding'] ?? null;
             if($messageId){
-                $this->handleManageReviews($userTelegramId, $cabinetId, $messageId);
+                if($isOnboarding){
+                    $welcomeBot->handleCongratulations($userTelegramId, $cabinetId, $messageId);
+                } else{
+                    $welcomeBot->handleManageReviews($userTelegramId, $cabinetId, $messageId);
+                }
                 Cache::forget("add_key_message_id_{$userTelegramId}");
             }
         }
+        
+        Cache::forget("session_{$chatId}");
+        Cache::forget("add_key_message_id_{$chatId}");
     }
 
     public function handleChangeAnswer($chatId, $questionId, $messageId = null)

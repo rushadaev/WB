@@ -55,6 +55,11 @@ class FetchFeedbacksJob implements ShouldQueue
             return;
         }
 
+        if (!$apiKey) {
+            Log::error('Feedback API key not found for cabinet: ' . $this->cabinetId);
+            return;
+        }
+        
         $feedbacks = $this->useWildberries($apiKey, $user)->getFeedbacks();
         if ($feedbacks['error']) {
             Log::error('Error fetching feedbacks: ' . $feedbacks['errorText']);

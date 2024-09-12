@@ -87,8 +87,6 @@ class FeedbackOnboardingController extends Controller
 
  4️⃣ <b>Ручное подтверждение:</b> Я сгенерирую ответ на каждый отзыв, а вы решите, отправить его, изменить или написать свой.
 
-
-
 Какой режим подходит вам?
 
 Я рекомендую подключить <b>Комбинированный режим</b>, чтобы иметь контроль над негативными отзывами и автоматизировать ответы на положительные.";
@@ -337,10 +335,9 @@ class FeedbackOnboardingController extends Controller
             'combined' => 'Комбинированный режим',
         ];
 
-        $mySettingsString .= "Режим: " . $modeHuman[$settings['onboarding']['mode']] . "\n";
-        $mySettingsString .= "Рекламное сообщение: " . $settings['onboarding']['advertisement_message'] . "\n";
-        $mySettingsString .= "Призыв к действию: " . $settings['onboarding']['call_to_action'] . "\n";
-        $mySettingsString .= "Бренд: " . Cabinet::findOrFail($cabinetId)->name . "\n";
+        $mySettingsString .= "Режим: <code>" . $modeHuman[$settings['onboarding']['mode']] . "</code>\n";
+        $mySettingsString .= "Рекламное сообщение: <code>" . $settings['onboarding']['advertisement_message'] . "</code>\n";
+        $mySettingsString .= "Призыв к действию: <code>" . $settings['onboarding']['call_to_action'] . "</code>\n";
 
         $message = "Поздравляю, вы настроили меня для генерации ответов на отзывы.
 Мои настройки:

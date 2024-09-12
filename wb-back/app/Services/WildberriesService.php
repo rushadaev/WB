@@ -10,7 +10,9 @@ use App\Models\User;
 class WildberriesService
 {
     protected $apiUrl = 'https://feedbacks-api.wildberries.ru/api/v1';
+    protected $apiTestUrl = 'https://feedbacks-api-sandbox.wildberries.ru';
     protected $apiKey;
+    protected $user;
 
     public function __construct(string $apiKey, User $user)
     {
@@ -193,6 +195,100 @@ class WildberriesService
                 'trace' => $e->getTraceAsString(),
             ]);
             return [
+                'error' => true,
+                'errorText' => 'An error occurred while making the API request',
+            ];
+        }
+    }
+
+    public function sendAnswer($feedbackId, $answer)
+    {
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => $this->apiKey,
+            ])->patch($this->apiUrl . '/feedbacks', [
+                'id' => $feedbackId,
+                'text' => $answer,
+            ]);
+
+            if ($response->successful()) {
+                return [
+                    'data' => $response->json(),
+                    'error' => false,
+                    'errorText' => '',
+                ];
+            } elseif ($response->status() == 401) {
+                $this->handleInvalidApiKey();
+                return [
+                    'data' => null,
+                    'error' => true,
+                    'errorText' => 'Invalid API key provided. Please enter a new one.',
+                ];
+            } else {
+                Log::error('Wildberries API error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                return [
+                    'data' => null,
+                    'error' => true,
+                    'errorText' => 'API request failed',
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Wildberries API exception', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return [
+                'data' => null,
+                'error' => true,
+                'errorText' => 'An error occurred while making the API request',
+            ];
+        }
+    }
+
+    public function sendAnswerTest($feedbackId, $answer)
+    {
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => $this->apiKey,
+            ])->patch($this->apiTestUrl . '/feedbacks', [
+                'id' => $feedbackId,
+                'text' => $answer,
+            ]);
+
+            if ($response->successful()) {
+                return [
+                    'data' => $response->json(),
+                    'error' => false,
+                    'errorText' => '',
+                ];
+            } elseif ($response->status() == 401) {
+                $this->handleInvalidApiKey();
+                return [
+                    'data' => null,
+                    'error' => true,
+                    'errorText' => 'Invalid API key provided. Please enter a new one.',
+                ];
+            } else {
+                Log::error('Wildberries API error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                return [
+                    'data' => null,
+                    'error' => true,
+                    'errorText' => 'API request failed',
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Wildberries API exception', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return [
+                'data' => null,
                 'error' => true,
                 'errorText' => 'An error occurred while making the API request',
             ];

@@ -13,6 +13,7 @@ use Carbon\Carbon;
 use App\Models\Feedback;
 use App\Services\TelegramService;
 use App\Jobs\SendTelegramMessage;
+use App\Services\ChatGptService;
 use TelegramBot\Api\Types\Inline\InlineKeyboardMarkup;
 
 class SendFeedbacksToTelegramJob implements ShouldQueue
@@ -35,7 +36,7 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(TelegramService $telegramService): void
+    public function handle(TelegramService $telegramService, ChatGptService $chatGptService): void
     {
         $cabinet = Cabinet::find($this->cabinetId);
         $user = $cabinet->user;
@@ -71,6 +72,9 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         // } 
 
         foreach ($feedbacks as $feedback) {
+            //TODO: THIS IS A MOCK IMPLEMENTATION, REPLACE WITH REAL LOGIC
+            $chatGptService->generateResponse($feedback);
+
             $onboarding = $cabinet->settings['onboarding'] ?? null;
             if (!$onboarding) {
                 Log::error('Onboarding settings not found for cabinet: ' . $this->cabinetId);
@@ -125,7 +129,9 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         Log::info("Sending feedback to Wildberries: " . $feedback->id);
 
         // Update feedback status to 'sent'
-        $feedback->status = 'sent';
+        
+        //TODO:Returnback!!!
+        // $feedback->status = 'sent';
 
         //Decrease user tokens
         $user->tokens = $user->tokens - 1;
@@ -144,7 +150,7 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
             [['text' => '🔄 Другой', 'callback_data' => "change_answer_{$question->id}"], ['text' => '✅Отправить', 'callback_data' => "accept_answer_{$question->id}"]],
         ]);
         $message = $this->formatMessage($question, 'Ответ недоступен, пожалуйста, нажмите кнопку "Другой"') . $this->suffixMessage;
-        SendTelegramMessage::dispatch($groupId, $message, 'HTML', $questionKeyboard);
+        SendTelegramMessage::dispatch($groupId, $message, 'HTML', $questionKeyboard, null, $this->cabinetId);
     }
 
     protected function sendReminderToSetupGroup($chatId, $cabinetId)
@@ -153,7 +159,7 @@ class SendFeedbacksToTelegramJob implements ShouldQueue
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '🔧 Настроить', 'callback_data' => 'welcome_add_group_' . $cabinetId]],
         ]);
-        SendTelegramMessage::dispatch($chatId, $message, 'HTML', $keyboard);
+        SendTelegramMessage::dispatch($chatId, $message, 'HTML', $keyboard, null, $cabinetId);
     }
 
     protected function formatMessage($question, $generatedResponse)

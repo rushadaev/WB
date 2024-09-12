@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class WarehouseCoefficient extends Model
 {
+    use CrudTrait;
     use HasFactory;
 
     // The table associated with the model (optional if it follows the naming convention)

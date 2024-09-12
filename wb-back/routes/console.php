@@ -72,11 +72,11 @@ Artisan::command('feedback_fetch', function () {
     foreach ($cabinets as $cabinet) {
         FetchFeedbacksJob::dispatch($cabinet->id);
     }
-})->purpose('Feedback fetch')->hourly();
+})->purpose('Feedback fetch')->everyMinute();
 
 Artisan::command('feedback_send', function () {
     $cabinets = Cabinet::all();
     foreach ($cabinets as $cabinet) {
         SendFeedbacksToTelegramJob::dispatch($cabinet->id);
     }
-})->purpose('Feedback fetch')->hourly();
+})->purpose('Feedback send')->everyMinute();
