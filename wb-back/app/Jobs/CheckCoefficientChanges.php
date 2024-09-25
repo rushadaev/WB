@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use App\Traits\UsesTelegram;
 use TelegramBot\Api\Types\Inline\InlineKeyboardMarkup;
 use App\Models\WarehouseCoefficient;
+use App\Jobs\SendTelegramMessage;
 use Illuminate\Support\Facades\Cache;
 use App\Models\User;
 use App\Models\Notification;
@@ -20,6 +21,7 @@ use Carbon\Carbon;
 class CheckCoefficientChanges implements ShouldQueue
 {
     use Queueable, Dispatchable, UsesTelegram, UsesWildberriesSupplies;
+    public $timeout = 300;
 
     protected $botToken;
 
@@ -36,11 +38,18 @@ class CheckCoefficientChanges implements ShouldQueue
      */
     public function handle(): void
     {
-        // Define the number of iterations within the minute (6 for every 10 seconds)
-        $iterations = 5;
-        $intervalSeconds = 10;
+        // Define the number of iterations within the minute (15 for every 4 seconds)
+        $iterations = 15;
+        $intervalSeconds = 4;
     
-        // Start a loop to handle tasks every ten seconds
+        // Define the API keys
+        $apiKeys = [
+            config('wildberries.supplies_api_key'),
+            config('wildberries.supplies_api_key_2'),
+            config('wildberries.supplies_api_key_3')
+        ];
+    
+        // Start a loop to handle tasks every four seconds
         for ($i = 0; $i < $iterations; $i++) {
             // Step 1: Fetch all active notifications
             $notifications = Notification::where('status', 'started')->get();
@@ -54,7 +63,10 @@ class CheckCoefficientChanges implements ShouldQueue
     
             // Step 3: Fetch and store coefficients in bulk for all active notifications
             if ($warehouseIds) {
-                $apiKey = config('wildberries.supplies_api_key');
+                // Rotate through API keys using the iteration index
+                $apiKeyIndex = $i % count($apiKeys);
+                $apiKey = $apiKeys[$apiKeyIndex];
+    
                 $this->fetchAndStoreCoefficients($apiKey, $warehouseIds);
             }
     
@@ -66,7 +78,7 @@ class CheckCoefficientChanges implements ShouldQueue
             // Log the execution for debugging
             Log::info('Warehouse coefficient check completed at ' . now());
     
-            // Sleep for 10 seconds before the next iteration
+            // Sleep for 4 seconds before the next iteration
             sleep($intervalSeconds);
         }
     }
@@ -150,10 +162,13 @@ class CheckCoefficientChanges implements ShouldQueue
                 [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']]
             ]);
 
-            $telegram = $this->useTelegram();
-            $telegram->setBotToken($this->botToken);
+            // $telegram = $this->useTelegram();
+            // $telegram->setBotToken($this->botToken);
 
-            $telegram->sendMessage($user->telegram_id, $message, 'HTML', false, null, $keyboard);
+
+            // $telegram->sendMessage($user->telegram_id, $message, 'HTML', false, null, $keyboard);
+            
+            SendTelegramMessage::dispatch($user->telegram_id, $message, 'HTML', $keyboard, $this->botToken);
 
             // Update the notification status to expired
             $notification->status = 'expired';
@@ -179,6 +194,10 @@ class CheckCoefficientChanges implements ShouldQueue
                         
                         $message = "🔔 Найден тайм-слот\n
 📅 Дата: {$date}\n🏭 Склад: {$warehouseName}\n📦 Короб: {$boxTypeName}\n💰 Стоимость приемки: x{$coeff}";
+                        if ($settings['date'] == 'untilfound' || Carbon::now()->greaterThan($checkUntilDate)) {
+                            $notification->status = 'finished';
+                            $notification->save();
+                        }
                         $this->notifyUser($user->telegram_id, $message);
                         Cache::put($cacheKey, $coefficient->coefficient, $checkUntilDate);
                     }
@@ -200,8 +219,9 @@ class CheckCoefficientChanges implements ShouldQueue
             [['text' => '📦 Создать поставку', 'callback_data' => 'wh_add_supply']],
             [['text' => '← В главное меню', 'callback_data' => 'wh_main_menu']]
         ]);
-        $telegram = $this->useTelegram();
-        $telegram->setBotToken($this->botToken);
-        $telegram->sendMessage($chatId, $message, 'HTML', false, null, $keyboard);
+        // $telegram = $this->useTelegram();
+        // $telegram->setBotToken($this->botToken);
+        // $telegram->sendMessage($chatId, $message, 'HTML', false, null, $keyboard);
+        SendTelegramMessage::dispatch($chatId, $message, 'HTML', $keyboard, $this->botToken);
     }
 }
