@@ -12,7 +12,11 @@ Route::get('/', function () {
 Route::middleware(['telegram.auth'])->group(function () {
     Route::post('/webhook/telegram/feedback', [TelegramController::class, 'handleWebhook']);
     Route::post('/webhook/telegram/supplies', [TelegramControllerSupplies::class, 'handleWebhookSupplies']);
+
+    Route::post('/webhook/telegram/supplies/new', [TelegramControllerSupplies::class, 'handleWebhookSuppliesNew']);
 });
+
+Route::post('/webhook/auth-completed', [TelegramControllerSupplies::class, 'handleWebhookNodeAuthCompleted']);
 
 
 Route::get('/payment/return', [PaymentController::class, 'paymentReturn'])->name('payment.return');

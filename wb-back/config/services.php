@@ -30,5 +30,8 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'nodejs' => [
+        'base_url' => env('NODEJS_BASE_URL', 'http://nodejs-server:3000'),
+    ],
 
 ];

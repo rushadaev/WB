@@ -18,7 +18,7 @@ class TelegramControllerSupplies extends Controller
     public function handleWebhookSupplies(Request $request)
     {
         $user = Auth::user();
-        
+
         $bot = new Client(config('telegram.bot_token_supplies'));
         $warehouseBot = new WarehouseBotController($bot);
         $welcomeBot = new WelcomeBotController($bot);
@@ -26,9 +26,9 @@ class TelegramControllerSupplies extends Controller
         Log::info('Service Access', [
             'user' => $user,
         ]);
-        
+
         $this->handleCommands($bot, $warehouseBot, $welcomeBot, $user);
-        
+
         $this->handleMessages($bot, $warehouseBot, $welcomeBot, $user);
 
         try {
@@ -36,11 +36,51 @@ class TelegramControllerSupplies extends Controller
         } catch (Exception $e) {
             Log::error($e->getMessage());
         }
-        
-        
+
+
         // Return a response to acknowledge the webhook
         return response()->json(['status' => 'success'], 200);
     }
+
+    public function handleWebhookSuppliesNew(Request $request)
+    {
+        $user = Auth::user();
+
+        $bot = new Client(config('telegram.bot_token_supplies_new'));
+        $warehouseBot = new WarehouseBotController($bot);
+        $welcomeBot = new WelcomeBotController($bot);
+
+        Log::info('Service Access', [
+            'user' => $user,
+        ]);
+
+        $this->handleCommands($bot, $warehouseBot, $welcomeBot, $user);
+
+        $this->handleMessages($bot, $warehouseBot, $welcomeBot, $user);
+
+        try {
+            $bot->run();
+        } catch (Exception $e) {
+            Log::error($e->getMessage());
+        }
+
+
+        // Return a response to acknowledge the webhook
+        return response()->json(['status' => 'success'], 200);
+    }
+
+    public function handleWebhookNodeAuthCompleted(Request $request)
+    {
+        $user = User::find($request->userId);
+        $status = $request->status;
+        $payload = $request->payload;
+        $bot = new Client(config('telegram.bot_token_supplies_new'));
+        $warehouseBot = new WarehouseBotController($bot);
+        \Log::info('Auth completed', ['user' => $user, 'status' => $status, 'payload' => $payload]);
+
+        $bot->sendMessage($user->telegram_id, "🔐 Аутентификация завершена. \nСтатус: {$status}");
+    }
+
 
     protected function isAllowSuppliesFunctions($user){
         if (!Gate::forUser($user)->allows('accessService', 'supplies')) {
@@ -50,7 +90,7 @@ class TelegramControllerSupplies extends Controller
         }
         return true;
     }
-    
+
     protected function isAllowFeedbackFunctions($user){
         if (!Gate::forUser($user)->allows('accessService', 'feedback')) {
             Cache::put("session_{$user->telegram_id}", ['action' => 'collect_wb_feedback_api_key'], 300); // Cache for 5 minutes
@@ -65,6 +105,17 @@ class TelegramControllerSupplies extends Controller
         $bot->command('ping', function ($message) use ($bot, $user) {
             $chatId = $message->getChat()->getId();
             $bot->sendMessage($chatId, 'pong!');
+        });
+
+        $bot->command('auth', function ($message) use ($warehouseBot, $bot, $user){
+            $chatId = $message->getChat()->getId();
+            $text = $message->getText();
+            $warehouseBot->startAuth($chatId);
+        });
+
+        $bot->command('drafts', function ($message) use ($warehouseBot, $user) {
+            $chatId = $message->getChat()->getId();
+            $warehouseBot->handleDrafts($chatId);
         });
 
         $bot->command('searches', function ($message) use ($warehouseBot, $user) {
@@ -92,7 +143,7 @@ class TelegramControllerSupplies extends Controller
             $chatId = null;
             $text = null;
             $messageId = null;
-    
+
             if ($message) {
                 $chatId = $message->getChat()->getId();
                 $text = $message->getText();
@@ -104,13 +155,13 @@ class TelegramControllerSupplies extends Controller
                 if ($successfulPayment) {
                     $bot->sendMessage($chatId, "Спасибо за покупку! Ваш платёж успешно обработан.");
                 }
-                
+
             } elseif ($callbackQuery) {
                 $chatId = $callbackQuery->getMessage()->getChat()->getId();
                 $data = $callbackQuery->getData();
                 $messageId = $callbackQuery->getMessage()->getMessageId();
-                
-                
+
+
 
                 $this->handleCallbackQuery($chatId, $data, $messageId, $warehouseBot, $welcomeBot, $user, $callbackQuery, $bot);
                 return;
@@ -123,7 +174,7 @@ class TelegramControllerSupplies extends Controller
             } else {
                 Log::error('Update does not contain a valid message or callback query', ['update' => $update]);
                 return;
-            } 
+            }
             return true;
         }, function () {
             return true;
@@ -148,14 +199,14 @@ class TelegramControllerSupplies extends Controller
 
         //hideloader
         $bot->answerCallbackQuery($callbackQuery->getId(), '', null);
-        
+
         return response()->json(['status' => 'success'], 200);
     }
 
-    protected function processSession($chatId, $text, Client $bot, $update, $warehouseBot)
+    protected function processSession($chatId, $text, Client $bot, $update, WarehouseBotController $warehouseBot)
     {
         $session = Cache::get("session_{$chatId}");
-    
+
         if ($session) {
             if (isset($session['action'])) {
                 switch ($session['action']) {
@@ -167,6 +218,12 @@ class TelegramControllerSupplies extends Controller
                         break;
                     case 'collect_notification_expiration_date':
                         $warehouseBot->handleCustomDateInput($chatId, $text);
+                        break;
+                    case 'collect_phone_number':
+                        $warehouseBot->handlePhoneNumber($chatId, $text);
+                        break;
+                    case 'collect_verification_code':
+                        $warehouseBot->handleVerificationCode($chatId, $text);
                         break;
                     default:
                         Log::warning('Unknown action in session', ['action' => $session['action']]);
@@ -181,7 +238,7 @@ class TelegramControllerSupplies extends Controller
                 'chatId' => $chatId,
                 'text' => $text
             ]);
-            
+
             $bot->sendMessage($chatId, '😕 <i>Команда не найдена, введите /start</i>', 'HTML');
         }
     }
@@ -216,7 +273,7 @@ class TelegramControllerSupplies extends Controller
         $message = '💸 '.$description;
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '💳 Оплатить', 'url' => $url]],
-            [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']] 
+            [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']]
         ]);
         $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
         // $bot->sendInvoice(
@@ -249,9 +306,9 @@ class TelegramControllerSupplies extends Controller
             ['service' => $service],
             ['api_key' => $apiKey]
         );
-    
+
         $keyboard = new InlineKeyboardMarkup([
-            [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']] 
+            [['text' => '🏠 На главную', 'callback_data' => 'welcome_start']]
         ]);
         $message = "Ваш API-ключ для службы {$service} сохранен. Теперь вы можете использовать команды Wildberries Bot. 🚀";
         $bot->sendMessage($chatId, $message, null, false, null, $keyboard);
@@ -261,21 +318,21 @@ class TelegramControllerSupplies extends Controller
     protected function clearSession($chatId){
         Cache::forget("session_{$chatId}");
     }
-    
+
     protected function handleOtherCallbackQueries($chatId, $data, $messageId)
     {
 
         return response()->json(['status' => 'success'], 200);
     }
-    
+
 
     //legacy delete later
     protected function processCallbackData($chatId, $text, Client $bot, $callbackQuery)
     {
-       
+
     }
 
-    
+
     protected function getUpdateDetails($update)
     {
         return [
@@ -285,7 +342,7 @@ class TelegramControllerSupplies extends Controller
             'edited_message' => $update->getEditedMessage() ? $this->getMessageDetails($update->getEditedMessage()) : null,
         ];
     }
-    
+
     protected function getMessageDetails($message)
     {
         return [
@@ -299,7 +356,7 @@ class TelegramControllerSupplies extends Controller
             // Add other relevant fields as needed
         ];
     }
-    
+
     protected function getUserDetails($user)
     {
         return [
@@ -311,7 +368,7 @@ class TelegramControllerSupplies extends Controller
             'language_code' => $user->getLanguageCode(),
         ];
     }
-    
+
     protected function getChatDetails($chat)
     {
         return [
@@ -323,7 +380,7 @@ class TelegramControllerSupplies extends Controller
             'last_name' => $chat->getLastName(),
         ];
     }
-    
+
     protected function getCallbackQueryDetails($callbackQuery)
     {
         return [
@@ -336,19 +393,19 @@ class TelegramControllerSupplies extends Controller
             'game_short_name' => $callbackQuery->getGameShortName(),
         ];
     }
-    
+
     protected function logObjectProperties($title, $object)
     {
         if (is_object($object)) {
             $reflection = new \ReflectionClass($object);
             $properties = $reflection->getProperties();
             $propertyValues = [];
-    
+
             foreach ($properties as $property) {
                 $property->setAccessible(true);
                 $propertyValues[$property->getName()] = $property->getValue($object);
             }
-    
+
             Log::info($title, $propertyValues);
         } else {
             Log::info($title, ['object' => $object]);
@@ -357,19 +414,19 @@ class TelegramControllerSupplies extends Controller
 
     protected function processGetFeedback($chatId)
     {
-        $this->notify($chatId, 'Получаем данные с Wildberries 🍓'); 
+        $this->notify($chatId, 'Получаем данные с Wildberries 🍓');
         $this->fetchAndSendQuestions('single', $chatId);
     }
-    
+
     protected function notify($telegramId, $message)
     {
         $bot = new Client(config('telegram.bot_token_supplies'));
         $bot->sendMessage($telegramId, $message);
     }
-    
+
     public function fetchAndSendQuestions($mode, $telegramId)
     {
-        
+
         Artisan::call('fetch:send-questions', [
             'mode' => $mode,
             'telegram_id' => $telegramId

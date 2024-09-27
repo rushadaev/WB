@@ -19,7 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
             '/webhook/telegram',
             '/webhook/telegram/feedback',
             '/webhook/telegram/supplies',
-            '/webhook/payment/success'
+            '/webhook/telegram/supplies/new',
+            '/webhook/payment/success',
+            '/webhook/auth-completed',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class User extends Authenticatable
 {
@@ -27,7 +28,9 @@ class User extends Authenticatable
         'password',
         'telegram_id',
         'subscription_until',
-        'is_paid'
+        'is_paid',
+        'state_path',
+        'phone_number',
     ];
 
     /**
@@ -39,6 +42,18 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    protected $appends = ['has_active_subscription'];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::updated(function ($user) {
+            // Invalidate the cached user data after the update
+            Cache::forget('user_telegram_id_' . $user->telegram_id);
+        });
+    }
 
     /**
      * Get the attributes that should be cast.
@@ -63,12 +78,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(Cabinet::class);
     }
- 
+
 
     public function apiKeysCount(){
         return $this->apiKeys()->count();
     }
-    
+
     public function getSuppliesApiKey()
     {
         $apiKey = $this->apiKeys()->where('service', 'supplies')->first();
@@ -80,7 +95,7 @@ class User extends Authenticatable
         $apiKey = $this->apiKeys()->where('service', 'feedback')->first();
         return $apiKey ? $apiKey->api_key : null;
     }
-    
+
     /**
      * Check if the user has an active subscription.
      *
