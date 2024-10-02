@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\TelegramControllerSupplies;
+use App\Http\Controllers\GoogleDocsController;
 
 Route::get('/', function () {
     return "Hey there!";
@@ -17,3 +18,6 @@ Route::middleware(['telegram.auth'])->group(function () {
 
 Route::get('/payment/return', [PaymentController::class, 'paymentReturn'])->name('payment.return');
 Route::post('/webhook/payment/success', [PaymentController::class, 'paymentSuccess'])->name('payment.success');
+
+
+Route::get('/replace-doc-variables', [GoogleDocsController::class, 'replaceVariablesInDoc']);
