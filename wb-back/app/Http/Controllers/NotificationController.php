@@ -35,7 +35,8 @@ class NotificationController extends Controller
         })->orderBy('created_at', 'desc') // Order by most recent
             ->when($request->input('type'), function ($query, $type) {
                 if($type === 'search') {
-                    return $query->where('settings->isBooking', false);
+                    return $query->whereNull('settings->isBooking')
+                                     ->orWhere('settings->isBooking', false);
                 } elseif ($type === 'booking') {
                     return $query->where('settings->isBooking', true);
                 } else {

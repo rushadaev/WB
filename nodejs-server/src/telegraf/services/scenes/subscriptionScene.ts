@@ -93,10 +93,10 @@ const subscriptionWizard = new Scenes.WizardScene<MyContext>(
             { id: 50, name: '50 автоброней', price: 6800 },
         ];
 
-        const apiUrl = 'https://botcomment.xyz';
+        const webUrl = 'https://botcomment.xyz';
 
         const tariffButtons = tariffs.map((tariff) => [
-            Markup.button.url(`${tariff.name} – ${tariff.price}₽`, `${apiUrl}/payment_link/${ctx.from.id}/${tariff.id}`)
+            Markup.button.url(`${tariff.name} – ${tariff.price}₽`, `${webUrl}/payment_link/${ctx.from.id}/${tariff.id}`)
         ]);
 
 
