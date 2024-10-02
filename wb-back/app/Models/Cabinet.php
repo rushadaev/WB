@@ -51,4 +51,15 @@ class Cabinet extends Model
     {
         return $this->settings['enabled'] ?? false;
     }
+
+    public function getCabinetIdAttribute()
+    {
+        return $this->settings['cabinet_id'] ?? null;
+    }
+
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class, 'cabinet_id', 'cabinet_id');
+    }
+
 }

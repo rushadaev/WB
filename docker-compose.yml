@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   wb-app:
     build:
@@ -129,6 +127,35 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - TELEGRAM_BOT_TOKEN_SUPPLIES_NEW=${TELEGRAM_BOT_TOKEN_SUPPLIES_NEW}
       - LARAVEL_API_URL=${LARAVEL_API_URL}
+    command: >
+      sh -c "
+      npm run dev"
+
+  auth-worker:
+    build:
+      context: ./nodejs-server
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: ${NODE_ENV}
+    image: nodejs-server
+    container_name: auth-worker
+    restart: unless-stopped
+    tty: true
+    volumes:
+      - ./nodejs-server:/usr/src/app
+      - ./nodejs-server/node_modules:/usr/src/app/node_modules
+      - ./wb-back/storage/state:/var/www/wb-back/storage/state
+    networks:
+      - app-network
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - PORT=3000  # Optional, can be omitted if not used by the worker
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - TELEGRAM_BOT_TOKEN_SUPPLIES_NEW=${TELEGRAM_BOT_TOKEN_SUPPLIES_NEW}
+      - LARAVEL_API_URL=${LARAVEL_API_URL}
+    command: >
+      sh -c "npm run start:worker"
 
 networks:
   app-network:

@@ -21,3 +21,7 @@ Route::post('/webhook/auth-completed', [TelegramControllerSupplies::class, 'hand
 
 Route::get('/payment/return', [PaymentController::class, 'paymentReturn'])->name('payment.return');
 Route::post('/webhook/payment/success', [PaymentController::class, 'paymentSuccess'])->name('payment.success');
+
+
+
+Route::get('/payment_link/{telegramId}/{tariff}', [PaymentController::class, 'getPaymentLink']);

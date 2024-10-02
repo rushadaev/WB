@@ -43,7 +43,7 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    protected $appends = ['has_active_subscription'];
+    protected $appends = ['has_active_subscription', 'cabinets'];
 
     protected static function boot()
     {
@@ -104,6 +104,11 @@ class User extends Authenticatable
     public function getHasActiveSubscriptionAttribute()
     {
         return $this->subscription_until && $this->subscription_until->isFuture();
+    }
+
+    public function getCabinetsAttribute()
+    {
+        return $this->cabinets()->get();
     }
 
     /**

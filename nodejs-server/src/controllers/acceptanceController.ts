@@ -3,8 +3,8 @@
 import fs from 'fs';
 import path from 'path';
 import axios, { AxiosResponse } from 'axios';
-import { Request, Response } from 'express';
-import { solveTaskInNode, wasmPath } from '../utils/pow/solveTask';
+import {Request, RequestHandler, Response} from 'express';
+import {solveTaskInNode, TaskInput, wasmPath} from '../utils/pow/solveTask';
 
 // Define Interfaces for Storage State
 interface Cookie {
@@ -63,15 +63,13 @@ interface PowAnswer {
 // Helper function to wait
 const wait = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Fetch Timeslots Endpoint
- * Expects query parameters: userId and preorderId
- */
-export const fetchTimeslots = async (req: Request, res: Response): Promise<Response> => {
+// Ensure the functions are typed as RequestHandler
+export const fetchTimeslots: RequestHandler = async (req: Request, res: Response): Promise<void> => {
     const { userId, preorderId } = req.query;
 
     if (!userId || !preorderId) {
-        return res.status(400).json({ error: 'Missing userId or preorderId parameter.' });
+        res.status(400).json({ error: 'Missing userId or preorderId parameter.' });
+        return;
     }
 
     try {
@@ -79,7 +77,8 @@ export const fetchTimeslots = async (req: Request, res: Response): Promise<Respo
         const statePath = path.join('/var/www/wb-back/storage/state', `${userId}.json`);
 
         if (!fs.existsSync(statePath)) {
-            return res.status(404).json({ error: 'User state not found.' });
+            res.status(404).json({ error: 'User state not found.' });
+            return;
         }
 
         const storageState: StorageState = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
@@ -90,14 +89,16 @@ export const fetchTimeslots = async (req: Request, res: Response): Promise<Respo
 
         const originData = origins.find(origin => origin.origin === 'https://seller.wildberries.ru');
         if (!originData) {
-            return res.status(400).json({ error: 'Origin data not found in state.' });
+            res.status(400).json({ error: 'Origin data not found in state.' });
+            return;
         }
 
         const wbTokenEntry = originData.localStorage.find(item => item.name === 'wb-eu-passport-v2.access-token');
         const wbTokenValue = wbTokenEntry ? wbTokenEntry.value : null;
 
         if (!wbTokenValue) {
-            return res.status(400).json({ error: 'WBTokenV3 token not found in localStorage.' });
+            res.status(400).json({ error: 'WBTokenV3 token not found in localStorage.' });
+            return;
         }
 
         // Add WBTokenV3 to cookies
@@ -138,13 +139,14 @@ export const fetchTimeslots = async (req: Request, res: Response): Promise<Respo
         const acceptanceCostsResult = acceptanceCostsResponse.data?.result;
 
         if (!acceptanceCostsResult) {
-            return res.status(500).json({ error: 'Failed to retrieve acceptance costs.' });
+            res.status(500).json({ error: 'Failed to retrieve acceptance costs.' });
+            return;
         }
 
         // Filter coefficients > -1
         acceptanceCostsResult.costs = acceptanceCostsResult.costs.filter(coefficient => coefficient.coefficient > -1);
 
-        return res.status(200).json({
+        res.status(200).json({
             message: 'Fetched acceptance costs and delivery date successfully.',
             data: {
                 acceptanceCosts: acceptanceCostsResult,
@@ -152,19 +154,16 @@ export const fetchTimeslots = async (req: Request, res: Response): Promise<Respo
         });
     } catch (error: any) {
         console.error('Error fetching acceptance costs:', error.response ? error.response.data : error.message);
-        return res.status(500).json({ error: 'Internal Server Error.' });
+        res.status(500).json({ error: 'Internal Server Error.' });
     }
 };
 
-/**
- * Book Timeslot Endpoint
- * Expects a JSON body: { userId, preorderId, deliveryDate, warehouseId, monopalletCount? }
- */
-export const bookTimeslot = async (req: Request, res: Response): Promise<Response> => {
+export const bookTimeslot: RequestHandler = async (req: Request, res: Response): Promise<void> => {
     const { userId, preorderId, deliveryDate, warehouseId, monopalletCount } = req.body;
 
     if (!userId || !preorderId || !deliveryDate || !warehouseId) {
-        return res.status(400).json({ error: 'Missing required parameters.' });
+        res.status(400).json({ error: 'Missing required parameters.' });
+        return;
     }
 
     try {
@@ -172,7 +171,8 @@ export const bookTimeslot = async (req: Request, res: Response): Promise<Respons
         const statePath = path.join('/var/www/wb-back/storage/state', `${userId}.json`);
 
         if (!fs.existsSync(statePath)) {
-            return res.status(404).json({ error: 'User state not found.' });
+            res.status(404).json({ error: 'User state not found.' });
+            return;
         }
 
         const storageState: StorageState = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
@@ -183,14 +183,16 @@ export const bookTimeslot = async (req: Request, res: Response): Promise<Respons
 
         const originData = origins.find(origin => origin.origin === 'https://seller.wildberries.ru');
         if (!originData) {
-            return res.status(400).json({ error: 'Origin data not found in state.' });
+            res.status(400).json({ error: 'Origin data not found in state.' });
+            return;
         }
 
         const wbTokenEntry = originData.localStorage.find(item => item.name === 'wb-eu-passport-v2.access-token');
         const wbTokenValue = wbTokenEntry ? wbTokenEntry.value : null;
 
         if (!wbTokenValue) {
-            return res.status(400).json({ error: 'WBTokenV3 token not found in localStorage.' });
+            res.status(400).json({ error: 'WBTokenV3 token not found in localStorage.' });
+            return;
         }
 
         // Add WBTokenV3 to cookies
@@ -228,7 +230,7 @@ export const bookTimeslot = async (req: Request, res: Response): Promise<Respons
         };
 
         // **Perform CAPTCHA Solving**
-        const task: PowTask = await getPowTask();
+        const task: TaskInput = await getPowTask();
 
         const startTime = Date.now();
         const answers: PowAnswer[] = await solvePowTask(task);
@@ -252,16 +254,15 @@ export const bookTimeslot = async (req: Request, res: Response): Promise<Respons
 
         console.log('Book Timeslot Result:', bookTimeslotResult);
 
-        return res.status(200).json({
+        res.status(200).json({
             message: 'Timeslot booked successfully.',
             data: bookTimeslotResult
         });
     } catch (error: any) {
         console.error('Error booking timeslot:', error.response ? error.response.data : error.message);
-        return res.status(500).json({ error: 'Internal Server Error.' });
+        res.status(500).json({ error: 'Internal Server Error.' });
     }
 };
-
 // Functions for CAPTCHA solving
 
 /**
@@ -269,11 +270,11 @@ export const bookTimeslot = async (req: Request, res: Response): Promise<Respons
  * @param clientId Optional client ID.
  * @returns The POW task.
  */
-export const getPowTask = async (clientId: string | null = null): Promise<PowTask> => {
+export const getPowTask = async (clientId: string | null = null): Promise<TaskInput> => {
     const actualClientId = clientId || 'e150c635-c6bb-4192-8046-97c2cf81e8b8'; // Use the actual client_id if required
     const getTaskUrl = `https://pow.wildberries.ru/api/v1/short/get-task?client_id=${actualClientId}`;
 
-    const response: AxiosResponse<PowTask> = await axios.get(getTaskUrl, {
+    const response: AxiosResponse<TaskInput> = await axios.get(getTaskUrl, {
         headers: {
             'Content-Type': 'application/json;charset=UTF-8',
             'Accept': '*/*',
@@ -297,7 +298,7 @@ export const getPowTask = async (clientId: string | null = null): Promise<PowTas
  * @param task The POW task to solve.
  * @returns An array of answers.
  */
-export const solvePowTask = async (task: PowTask): Promise<PowAnswer[]> => {
+export const solvePowTask = async (task:TaskInput): Promise<PowAnswer[]> => {
     let resultArray: PowAnswer[] = [];
     try {
         const result = await solveTaskInNode(wasmPath, task);
@@ -315,7 +316,7 @@ export const solvePowTask = async (task: PowTask): Promise<PowAnswer[]> => {
  * @param answers The answers to verify.
  * @returns The CAPTCHA token.
  */
-export const verifyPowAnswer = async (task: PowTask, answers: PowAnswer[]): Promise<string> => {
+export const verifyPowAnswer = async (task:TaskInput, answers: PowAnswer[]): Promise<string> => {
     const verifyUrl = 'https://pow.wildberries.ru/api/v1/short/verify-answer';
 
     const data = {

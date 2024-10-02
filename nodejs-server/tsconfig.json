@@ -3,18 +3,20 @@
     "outDir": "./dist",
     "allowJs": true,
     "checkJs": false,
-    "target": "ES6",
-    "module": "commonjs",
+    "target": "ES2017",
+    "module": "ESNext",
     "esModuleInterop": true,
-    "strict": true,
+    // "strict": true,
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "baseUrl": "./",
     "paths": {
       "*": ["node_modules/*", "src/types/*"]
     },
+    "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src/**/*"],        // Include both .ts and .js files
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

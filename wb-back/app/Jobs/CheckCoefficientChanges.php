@@ -41,48 +41,48 @@ class CheckCoefficientChanges implements ShouldQueue
         // Define the number of iterations within the minute (15 for every 4 seconds)
         $iterations = 15;
         $intervalSeconds = 4;
-    
+
         // Define the API keys
         $apiKeys = [
             config('wildberries.supplies_api_key'),
             config('wildberries.supplies_api_key_2'),
             config('wildberries.supplies_api_key_3')
         ];
-    
+
         // Start a loop to handle tasks every four seconds
         for ($i = 0; $i < $iterations; $i++) {
             // Step 1: Fetch all active notifications
             $notifications = Notification::where('status', 'started')->get();
-    
+
             // Step 2: Collect all warehouse IDs from active notifications
             $warehouseIds = $notifications->pluck('settings')
                 ->pluck('warehouseId')
                 ->filter()
                 ->unique()
                 ->implode(',');
-    
+
             // Step 3: Fetch and store coefficients in bulk for all active notifications
             if ($warehouseIds) {
                 // Rotate through API keys using the iteration index
                 $apiKeyIndex = $i % count($apiKeys);
                 $apiKey = $apiKeys[$apiKeyIndex];
-    
+
                 $this->fetchAndStoreCoefficients($apiKey, $warehouseIds);
             }
-    
+
             // Step 4: Iterate over each notification to check for changes
             foreach ($notifications as $notification) {
                 $this->checkCoefficientChanges($notification);
             }
-    
+
             // Log the execution for debugging
             Log::info('Warehouse coefficient check completed at ' . now());
-    
+
             // Sleep for 4 seconds before the next iteration
             sleep($intervalSeconds);
         }
     }
-    
+
 
     /**
      * Fetches the acceptance coefficients and stores them in the database.
@@ -101,10 +101,10 @@ class CheckCoefficientChanges implements ShouldQueue
         }
 
         WarehouseCoefficient::where('date', '<', now()->format('Y-m-d'))->delete();
-        
+
         foreach ($coefficients['data'] as $coefficient) {
             $convertedDate = Carbon::parse($coefficient['date'])->format('Y-m-d H:i:s');
-            
+
             WarehouseCoefficient::updateOrCreate(
                 [
                     'warehouse_id' => $coefficient['warehouseID'],
@@ -141,10 +141,10 @@ class CheckCoefficientChanges implements ShouldQueue
             ->where('box_type_id', $settings['boxTypeId'])
             ->where('date', '<=', Carbon::parse($settings['checkUntilDate']))
             ->get();
-        
+
         // Check if the search time has expired
         $checkUntilDate = Carbon::parse($settings['checkUntilDate']);
-        $status = $notification->status; 
+        $status = $notification->status;
         if (Carbon::now()->greaterThan($checkUntilDate) && $status == 'started') {
             // Send notification for expired search
             $warehouseId = $settings['warehouseId'];
@@ -167,7 +167,7 @@ class CheckCoefficientChanges implements ShouldQueue
 
 
             // $telegram->sendMessage($user->telegram_id, $message, 'HTML', false, null, $keyboard);
-            
+
             SendTelegramMessage::dispatch($user->telegram_id, $message, 'HTML', $keyboard, $this->botToken);
 
             // Update the notification status to expired
@@ -191,7 +191,7 @@ class CheckCoefficientChanges implements ShouldQueue
                         $warehouseName = $coefficient->warehouse_name;
                         $boxTypeName = $coefficient->box_type_name;
                         $coeff = $coefficient->coefficient;
-                        
+
                         $message = "🔔 Найден тайм-слот\n
 📅 Дата: {$date}\n🏭 Склад: {$warehouseName}\n📦 Короб: {$boxTypeName}\n💰 Стоимость приемки: x{$coeff}";
                         if ($settings['date'] == 'untilfound' || Carbon::now()->greaterThan($checkUntilDate)) {
@@ -217,7 +217,7 @@ class CheckCoefficientChanges implements ShouldQueue
     {
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '📦 Создать поставку', 'callback_data' => 'wh_add_supply']],
-            [['text' => '← В главное меню', 'callback_data' => 'wh_main_menu']]
+            [['text' => '← В главное меню', 'callback_data' => 'mainmenu']]
         ]);
         // $telegram = $this->useTelegram();
         // $telegram->setBotToken($this->botToken);

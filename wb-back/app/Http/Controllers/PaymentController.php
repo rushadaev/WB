@@ -47,14 +47,14 @@ class PaymentController extends Controller
         $orderId = $request->orderId;
         // Retrieve payment ID from cache
         $paymentId = Cache::get("payment_id_{$orderId}");
-    
+
         if (!$paymentId) {
             return redirect()->away('https://t.me/wbhelpy_bot');
         }
-    
+
         // Retrieve payment details from YooKassa
         $payment = $this->yooKassaService->retrievePayment($paymentId);
-    
+
         Log::info('Payment details', $payment->jsonSerialize());
         if ($payment->status === 'succeeded') {
             return redirect()->away('https://t.me/wbhelpy_bot');
@@ -69,7 +69,7 @@ class PaymentController extends Controller
         $requestBody = $request->all();
         // Use the YooKassaService to handle the webhook data
         $payment = $this->yooKassaService->handleWebhook($requestBody);
-        
+
         if ($payment) {
             // Extract the telegram_id from the payment metadata
             $telegramId = $payment->getMetadata()->telegram_id ?? null;
@@ -115,7 +115,7 @@ class PaymentController extends Controller
                             $message = 'Вы купили доступ навсегда! Спасибо!';
                         }
                         $keyboard = new InlineKeyboardMarkup([
-                            [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']] 
+                            [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']]
                         ]);
                         TelegramNotificationService::notify($telegramId, $message, config('telegram.bot_token_supplies'), $keyboard);
 
@@ -138,6 +138,25 @@ class PaymentController extends Controller
             Log::info('Webhook failed', ['WebhookInfo' => $requestBody]);
             return response()->json(['message' => 'Payment processing error'], 400);
         }
-       
+
+    }
+    public function getPaymentLink($telegramId, $tariff)
+    {
+        $amount = match ($tariff) {
+            '1' => 250,
+            '5' => 1000,
+            '10' => 1850,
+            '20' => 3500,
+            '50' => 6800,
+            default => 1000,
+        };
+
+        $description = 'Покупка '.$tariff;
+        $subscriptionPeriod = '';
+        $orderId = $telegramId.'_'.$tariff;
+
+        $url = $this->createPaymentLink($amount, $orderId, $telegramId, $description, $subscriptionPeriod);
+
+        return redirect()->away($url);
     }
 }

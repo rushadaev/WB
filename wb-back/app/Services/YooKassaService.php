@@ -40,7 +40,7 @@ class YooKassaService
                 'metadata' => [
                     'order_id' => $orderId,
                     'telegram_id' => $telegramId,
-                    'subscription_period' => $subscriptionPeriod
+                    'subscription_period' => $subscriptionPeriod,
                 ],
             ],
             $uniqueId
