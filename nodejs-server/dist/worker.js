@@ -1784,8 +1784,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _services_authService__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../../services/authService */ "./src/services/authService.ts");
 /* harmony import */ var uuid__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! uuid */ "uuid");
 /* harmony import */ var uuid__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(uuid__WEBPACK_IMPORTED_MODULE_5__);
-/* harmony import */ var _utils_cabinetGate__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../../utils/cabinetGate */ "./src/telegraf/utils/cabinetGate.ts");
-
 
 
 
@@ -1889,9 +1887,6 @@ async (ctx) => {
 }, nameHandler, phoneHandler, codeHandler);
 cabinetWizzard.command('start', async (ctx) => {
     await ctx.scene.enter('main');
-});
-cabinetWizzard.action('autobooking', async (ctx) => {
-    await (0,_utils_cabinetGate__WEBPACK_IMPORTED_MODULE_6__.cabinetGate)(ctx, 'autoBookingWizard');
 });
 // Export the scene
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (cabinetWizzard);
@@ -2898,8 +2893,6 @@ const cabinetGate = async (ctx, scene) => {
         _utils_logger_loggerTelegram__WEBPACK_IMPORTED_MODULE_1__["default"].error('Error getting user:', error);
         await ctx.reply('Произошла ошибка при получении данных пользователя. Попробуйте позже');
     }
-    console.log('user', user);
-    console.log('user && user.cabinets.length === 0', user && user.cabinets.length === 0);
     if (user && user.cabinets.length === 0) {
         await ctx.scene.enter('createCabinetWizzard');
     }

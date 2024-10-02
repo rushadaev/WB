@@ -147,9 +147,5 @@ cabinetWizzard.command('start', async (ctx) => {
     await ctx.scene.enter('main');
 });
 
-cabinetWizzard.action('autobooking', async (ctx: MyContext) => {
-    await cabinetGate(ctx, 'autoBookingWizard');
-});
-
 // Export the scene
 export default cabinetWizzard;
