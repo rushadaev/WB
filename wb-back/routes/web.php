@@ -12,11 +12,7 @@ Route::get('/', function () {
 Route::middleware(['telegram.auth'])->group(function () {
     Route::post('/webhook/telegram/feedback', [TelegramController::class, 'handleWebhook']);
     Route::post('/webhook/telegram/supplies', [TelegramControllerSupplies::class, 'handleWebhookSupplies']);
-
-    Route::post('/webhook/telegram/supplies/new', [TelegramControllerSupplies::class, 'handleWebhookSuppliesNew']);
 });
-
-Route::post('/webhook/auth-completed', [TelegramControllerSupplies::class, 'handleWebhookNodeAuthCompleted']);
 
 
 Route::get('/payment/return', [PaymentController::class, 'paymentReturn'])->name('payment.return');
@@ -24,4 +20,9 @@ Route::post('/webhook/payment/success', [PaymentController::class, 'paymentSucce
 
 
 
+
 Route::get('/payment_link/{telegramId}/{tariff}', [PaymentController::class, 'getPaymentLink']);
+
+
+
+Route::get('/replace-doc-variables', [GoogleDocsController::class, 'replaceVariablesInDoc']);
