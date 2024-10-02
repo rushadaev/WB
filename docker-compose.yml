@@ -129,7 +129,7 @@ services:
       - LARAVEL_API_URL=${LARAVEL_API_URL}
     command: >
       sh -c "
-      npm run dev"
+      npm run start"
 
   auth-worker:
     build:
