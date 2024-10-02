@@ -16,7 +16,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Production Stage
-FROM node:18-slim
+FROM node:20-slim
 
 WORKDIR /usr/src/app
 
@@ -40,12 +40,12 @@ RUN apt-get update && \
     libgtk-3-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the node_modules from the builder stage
-COPY --from=builder /usr/src/app/node_modules ./node_modules
+# # Copy the node_modules from the builder stage
+# COPY --from=builder /usr/src/app/node_modules ./node_modules
 
-# Copy the built code and necessary assets from the builder stage
-COPY --from=builder /usr/src/app/dist ./dist
-COPY --from=builder /usr/src/app/public ./public
+# # Copy the built code and necessary assets from the builder stage
+# COPY --from=builder /usr/src/app/dist ./dist
+# COPY --from=builder /usr/src/app/src ./src
 
 # Expose port
 EXPOSE 3000

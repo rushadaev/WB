@@ -2,9 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Traits\UsesNodeApiService;
-use Illuminate\Support\Facades\Redis;
-use Illuminate\Validation\Rules\In;
 use TelegramBot\Api\Client;
 use App\Models\User;
 use App\Models\Notification;
@@ -24,7 +21,6 @@ use Illuminate\Support\Facades\DB;
 class WarehouseBotController extends Controller
 {
     use UsesWildberriesSupplies;
-    use UsesNodeApiService;
     protected $bot;
     // Define constants for box types, coefficients, and dates
     const BOX_TYPES = [
@@ -32,7 +28,7 @@ class WarehouseBotController extends Controller
         'monopalet' => '📦Монопаллет',
         'supersafe' => '📦Суперсейф'
     ];
-
+    
     const COEFFICIENTS = [
         '0' => 'Бесплатная',
         '1' => 'До х1',
@@ -40,7 +36,7 @@ class WarehouseBotController extends Controller
         '3' => 'До х3',
         '4' => 'До х4'
     ];
-
+    
     const DATES = [
         'today' => 'Сегодня',
         'tomorrow' => 'Завтра',
@@ -203,7 +199,7 @@ class WarehouseBotController extends Controller
     {
         $this->bot = $bot;
     }
-
+    
 
     protected function getGlobalButtons()
     {
@@ -230,22 +226,22 @@ class WarehouseBotController extends Controller
     public function handleSearches($chatId, $messageId = null)
     {
         $user = User::where('telegram_id', $chatId)->first();
-
+        
         // Fetch all notifications for the user
         $notifications = Notification::where('user_id', $user->id)->get();
-
+    
         // Initialize the message components
         $messages = [];
         $currentMessage = "Ваши поиски:\n\n";
         $maxMessageLength = 4096; // Telegram message length limit
         $currentMessageLength = strlen($currentMessage);
-
+    
         // Load the warehouses list from the configuration file
         $warehouses = config('warehouses.list');
 
         foreach ($notifications as $notification) {
             $settings = $notification->settings; // Directly use the settings array
-
+            
             $warehouseId = (int)$settings['warehouseId'];
             $warehouseName = $warehouses[$warehouseId] ?? "Склад {$warehouseId}";
 
@@ -271,7 +267,7 @@ class WarehouseBotController extends Controller
             $formattedMessage .= "⏰ Время: " . ($settings['checkUntilDate'] ?? 'Не указано') . "\n";
             $formattedMessage .= "💰 Коэффициент: " . ($settings['coefficient'] == '0' ? 'Бесплатная' : $settings['coefficient']) . "\n";
             $formattedMessage .= "📋 Статус: " . $statusDescription . "\n\n";
-
+    
             // Check if adding this formatted message would exceed the limit
             if ($currentMessageLength + strlen($formattedMessage) > $maxMessageLength) {
                 // Save the current message to the list and start a new one
@@ -279,22 +275,22 @@ class WarehouseBotController extends Controller
                 $currentMessage = "Ваши поиски (продолжение):\n\n";
                 $currentMessageLength = strlen($currentMessage);
             }
-
+    
             // Append the formatted message to the current message
             $currentMessage .= $formattedMessage;
             $currentMessageLength += strlen($formattedMessage);
         }
-
+    
         // Add the last message to the list
         if (!empty(trim($currentMessage))) {
             $messages[] = $currentMessage;
         }
-
+    
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '📦 Узнать КФ', 'callback_data' => 'wh_warehouses'], ['text' => '🔎 Найти тайм-слот', 'callback_data' => 'wh_notification']],
             [['text' => '🏠 На главную', 'callback_data' => 'wh_main_menu']],
         ]);
-
+    
         // Send or update messages with the keyboard
         foreach ($messages as $index => $msg) {
             if ($index === 0 && $messageId) {
@@ -333,9 +329,9 @@ class WarehouseBotController extends Controller
 1. Выберите склад.
 2. Укажите в чем будете отгружать.
 3. Выберите тип приемки.
-4. Ждите уведомления.
+4. Ждите уведомления. 
 
-Как только появится подходящий тайм-слот, мы сразу же отправим вам уведомление. Вы можете ставить любое количество уведомлений
+Как только появится подходящий тайм-слот, мы сразу же отправим вам уведомление. Вы можете ставить любое количество уведомлений 
 
 ⚠️Подписка закончилась, необходимо оплатить";
         }
@@ -349,38 +345,18 @@ class WarehouseBotController extends Controller
 1. Выберите склад.
 2. Укажите в чем будете отгружать.
 3. Выберите тип приемки.
-4. Ждите уведомления.
+4. Ждите уведомления. 
 
-Как только появится подходящий тайм-слот, мы сразу же отправим вам уведомление. Вы можете ставить любое количество уведомлений
+Как только появится подходящий тайм-слот, мы сразу же отправим вам уведомление. Вы можете ставить любое количество уведомлений 
 
 {$formattedDate}
 ";
         }
-//        $keyboard = new InlineKeyboardMarkup([
-//            [['text' => '📦 Узнать КФ', 'callback_data' => 'wh_warehouses'], ['text' => '🔎 Найти тайм-слот', 'callback_data' => 'wh_notification']],
-//            [['text' => '💵 Подписка', 'callback_data' => 'wh_payment']]
-//        ]);
-
         $keyboard = new InlineKeyboardMarkup([
-                [
-                    ['text' => '📦 Автобронирование', 'callback_data' => 'wh_notification']
-                ],
-                [
-                    ['text' => '⚡ Поиск слотов', 'callback_data' => 'wh_notification'],
-                    ['text' => '📝 Заявки на поиск слотов', 'callback_data' => 'wh_notification']
-                ],
-                [
-                    ['text' => '🙌 Мои кабинеты', 'callback_data' => 'wh_payment'],
-                    ['text' => '💎 Подписка', 'callback_data' => 'wh_payment']
-                ],
-                [
-                    ['text' => '💬 Поддержка', 'url' => 'https://t.me/dmitrynovikov21'],
-                    ['text' => '📍 Инструкции', 'url' => 'https://t.me/dmitrynovikov21']
-                ]
-            ]
-        );
-
-
+            [['text' => '📦 Узнать КФ', 'callback_data' => 'wh_warehouses'], ['text' => '🔎 Найти тайм-слот', 'callback_data' => 'wh_notification']],
+            [['text' => '💵 Подписка', 'callback_data' => 'wh_payment']]
+        ]);
+    
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard, 'HTML');
     }
 
@@ -410,7 +386,7 @@ class WarehouseBotController extends Controller
             $this->bot->sendMessage($chatId, 'Пользователь не найден');
             return;
         }
-
+        
         if (!$user->has_active_subscription) {
             $this->handlePayment($chatId, $messageId, 'init');
             return;
@@ -422,10 +398,10 @@ class WarehouseBotController extends Controller
             return;
         }
 
-        $warehousesResponse = Cache::remember('warehouses', 6 * 60, function() use ($user, $apiKey)  {
+        $warehousesResponse = Cache::remember('warehouses_old', 6 * 60, function() use ($user, $apiKey)  {
             return $this->useWildberriesSupplies($apiKey)->getWarehouses();
         });
-
+    
         if ($warehousesResponse['error']) {
             $this->bot->sendMessage($chatId, 'Произошла ошибка при получении данных складов: ' . $warehousesResponse['errorText']);
             return;
@@ -473,24 +449,24 @@ class WarehouseBotController extends Controller
 
         // Merge prioritized warehouses with the rest
         $warehouses = array_merge($prioritizedList, $otherWarehouses);
-
+        
         $totalWarehouses = count($warehouses);
         $perPage = 5;
         $totalPages = ceil($totalWarehouses / $perPage);
         $page = max(1, min($totalPages, $page));
         $start = ($page - 1) * $perPage;
         $currentWarehouses = array_slice($warehouses, $start, $perPage);
-
+    
         $keyboardButtons = [];
-
+    
         foreach ($currentWarehouses as $warehouse) {
             $keyboardButtons[] = [['text' => $warehouse['name'], 'callback_data' => $callbackData . $warehouse['ID']]];
         }
-
+    
         $navigationButtons = [];
         $pageCallback = 'wh_warehouses_page_';
         if($callbackData == 'wh_warehouse_set_'){
-            $pageCallback = 'wh_warehouses_set_page_';
+            $pageCallback = 'wh_warehouses_set_page_'; 
         }
         if ($page > 1) {
             $navigationButtons[] = ['text' => '← Назад', 'callback_data' => $pageCallback . ($page - 1)];
@@ -501,11 +477,11 @@ class WarehouseBotController extends Controller
         if (!empty($navigationButtons)) {
             $keyboardButtons[] = $navigationButtons;
         }
-
+    
         $keyboard = new InlineKeyboardMarkup($keyboardButtons);
-
-        $message = '✅Выберите склад чтобы узнать коэффициенты:';
-
+    
+        $message = '✅Выберите склад чтобы узнать коэффициенты:'; 
+        
         if($callbackData == 'wh_warehouse_set_'){
             $message = '✅Выберите склад';
         }
@@ -619,21 +595,21 @@ class WarehouseBotController extends Controller
             return response()->json(['status' => 'success'], 200);
         }
     }
-
+    
     // Update handleBoxTypes method
     public function handleBoxTypes($chatId, $warehouseId, $messageId)
     {
         $keyboardButtons = [];
-
+    
         foreach (self::BOX_TYPES as $id => $boxType) {
             $keyboardButtons[] = [['text' => $boxType, 'callback_data' => 'wh_box_type_set_' . $warehouseId . '_' . $id]];
         }
-
+    
         // Add main menu button on a new line
         $keyboardButtons[] = [['text' => '🏠 Главное меню', 'callback_data' => 'wh_main_menu']];
-
+    
         $keyboard = new InlineKeyboardMarkup($keyboardButtons);
-
+    
         $message = 'Выберите тип коробки:';
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
     }
@@ -700,10 +676,10 @@ class WarehouseBotController extends Controller
                break;
             case 'monopalet':
                 $boxTypeId = 5;
-                break;
+                break;  
             case 'supersafe':
                 $boxTypeId = 6;
-                break;
+                break;  
         }
         // Cache the notification settings
         $cacheKey = 'notification_settings_' . $chatId;
@@ -740,14 +716,14 @@ class WarehouseBotController extends Controller
             $this->bot->sendMessage($chatId, 'Неверный формат даты. Пожалуйста, введите дату в формате YYYY-MM-DD.');
             return;
         }
-
+    
         // Retrieve the session data from the cache
         $sessionData = Cache::get("session_{$chatId}", null);
         if (!$sessionData || $sessionData['action'] !== 'collect_notification_expiration_date') {
             $this->bot->sendMessage($chatId, 'Сессия истекла или неверное действие. Пожалуйста, начните заново.');
             return;
         }
-
+    
         // Retrieve and update the notification
         $notification = Notification::find($sessionData['notification_id']);
         if ($notification) {
@@ -755,10 +731,10 @@ class WarehouseBotController extends Controller
             $settings['checkUntilDate'] = Carbon::parse($customDate)->endOfDay()->toDateTimeString();
             $notification->settings = $settings;
             $notification->save();
-
+    
             // Remove the session data from the cache
             Cache::forget("session_{$chatId}");
-
+    
             $this->sendNotificationSummary($chatId, $notification);
         } else {
             $this->bot->sendMessage($chatId, 'Не удалось найти уведомление. Пожалуйста, начните заново.');
@@ -781,7 +757,7 @@ class WarehouseBotController extends Controller
                 }
             }
         }
-
+        
         // Retrieve human-readable labels from constants
         $boxType = self::BOX_TYPES[$settings['boxType']] ?? 'Unknown';
         $coefficient = self::COEFFICIENTS[$settings['coefficient']] ?? 'Unknown';
@@ -794,12 +770,12 @@ class WarehouseBotController extends Controller
         $message .= "Тип коробки: {$boxType}\n";
         $message .= "Тип приемки: {$coefficient}\n";
         $message .= "Проверять до: {$checkUntilDate}\n";
-
+    
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '✅Запустить поиск', 'callback_data' => 'wh_start_notification_' . $notification->id]],
             [['text' => '🏠 Главное меню', 'callback_data' => 'wh_main_menu']]
         ]);
-
+    
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
     }
 
@@ -814,7 +790,7 @@ class WarehouseBotController extends Controller
             return;
         }
         $message = 'Мы уже ищем тайм-слот для вашей поставки!';
-
+        
         $keyboard = new InlineKeyboardMarkup([
             [['text' => '← В главное меню', 'callback_data' => 'wh_main_menu']]
         ]);
@@ -835,7 +811,7 @@ class WarehouseBotController extends Controller
                 }
             }
         }
-
+        
         // Retrieve human-readable labels from constants
         $boxType = self::BOX_TYPES[$settings['boxType']] ?? 'Unknown';
         $coefficient = self::COEFFICIENTS[$settings['coefficient']] ?? 'Unknown';
@@ -865,45 +841,45 @@ class WarehouseBotController extends Controller
         }
 
         // Fetch the acceptance coefficients for the warehouse, with caching
-        $coefficientsResponse = $this->useWildberriesSupplies($apiKey)->getStoredAcceptanceCoefficients($warehouseId);
-
+        $coefficientsResponse = $this->useWildberriesSupplies($apiKey)->getStoredAcceptanceCoefficients($warehouseId); 
+    
         if ($coefficientsResponse['error']) {
             $this->bot->sendMessage($chatId, 'Произошла ошибка при получении коэффициентов: ' . $coefficientsResponse['errorText']);
             return;
         }
-
+    
         // Check if the data is an array
         if (!is_array($coefficientsResponse['data'])) {
             $message = $this->bot->sendMessage($chatId, '😔Для данного склада нет коэффициентов');
             $errorMessageId = $message->getMessageId();
+        
 
-
-            DeleteTelegramMessage::dispatch($chatId, $errorMessageId, config('telegram.bot_token_supplies'));
+            DeleteTelegramMessage::dispatch($chatId, $errorMessageId, config('telegram.bot_token_supplies')); 
 
             return;
         }
-
+    
         // Prepare the details message
         $coefficients = $coefficientsResponse['data'];
         $groupedCoefficients = [];
-
+    
         // Group the coefficients by boxTypeName
         foreach ($coefficients as $coefficient) {
             $boxTypeName = $coefficient['boxTypeName'];
             $date = Carbon::parse($coefficient['date'])->locale('ru')->isoFormat('D MMMM');
             $coefficientValue = $coefficient['coefficient'];
             $warehouseName = $coefficient['warehouseName'];
-
+    
             if (!isset($groupedCoefficients[$boxTypeName])) {
                 $groupedCoefficients[$boxTypeName] = [];
             }
-
+    
             $groupedCoefficients[$boxTypeName][] = [
                 'date' => $date,
                 'coefficient' => $coefficientValue,
             ];
         }
-
+    
         // Pagination logic
         $groupedBoxTypes = array_keys($groupedCoefficients);
         $totalItems = count($groupedBoxTypes);
@@ -912,7 +888,7 @@ class WarehouseBotController extends Controller
         $page = max(1, min($totalPages, $page));
         $start = ($page - 1) * $perPage;
         $currentBoxType = $groupedBoxTypes[$start];
-
+    
         // Construct the message for the current page
         $message = "🏢 Склад: {$warehouseName}\n";
         $message .= "📦 Тип коробки: {$currentBoxType}\n\n📊 Коэффициенты:\n";
@@ -923,9 +899,9 @@ class WarehouseBotController extends Controller
                 $message .= "📆 {$entry['date']} — X{$entry['coefficient']}\n";
             }
         }
-
+        
         $message .= "\n--------------------------\n\n Чтобы изменить тип коробки — нажмите «Вперед»";
-
+    
         // Create navigation buttons
         $keyboardButtons = [];
         if ($page > 1) {
@@ -936,97 +912,9 @@ class WarehouseBotController extends Controller
         }
 
         $keyboard = new InlineKeyboardMarkup(array_merge([$keyboardButtons], $this->getGlobalButtons()));
-
+    
         // Send or update the message for the current page
         $this->sendOrUpdateMessage($chatId, $messageId, $message, $keyboard);
         return response()->json(['status' => 'success'], 200);
-    }
-
-    public function handleVerificationCode($chatId, $code){
-        $user = User::where('telegram_id', $chatId)->first();
-        if (!$user) {
-            $this->bot->sendMessage($chatId, 'Пользователь не найден');
-            return;
-        }
-
-        // Store the verification code in cache
-        Cache::put("verification_code_{$user->telegram_id}", ['action' => 'collect_verification_code', 'code' => $code], 300);
-
-        Redis::connection()->publish("verification_code_channel_{$chatId}", json_encode([
-            'telegramId' => $user->telegram_id,
-            'action' => 'collect_verification_code',
-            'code' => $code,
-        ]));
-
-        Cache::forget("session_{$user->telegram_id}");
-    }
-
-    public function startAuth(mixed $chatId): void
-    {
-        Cache::put("session_{$chatId}", ['action' => 'collect_phone_number'], 300); // Cache for 5 minutes
-        $this->bot->sendMessage($chatId, 'Пожалуйста, введите ваш номер телефона без 7 в формате 9991234567:');
-    }
-
-    public function handlePhoneNumber($chatId, $phoneNumber): void
-    {
-        //filter phone number in format 10 digits without 7
-        $phoneNumber = preg_replace('/[^0-9]/', '', $phoneNumber);
-        //if phone less than 10 digits return error
-        if (strlen($phoneNumber) < 10) {
-            $this->bot->sendMessage($chatId, 'Номер телефона должен содержать 10 цифр');
-            return;
-        }
-        $user = User::where('telegram_id', $chatId)->first();
-        if (!$user) {
-            $this->bot->sendMessage($chatId, 'Пользователь не найден');
-            return;
-        }
-
-        $user->phone_number = $phoneNumber;
-        $user->save();
-
-        $this->sendOrUpdateMessage($chatId, null, 'Запускаем авторизацию.', null);
-        $this->useNodeApi()->authenticate($user, $phoneNumber);
-
-
-    }
-
-    public function handleDrafts(mixed $chatId)
-    {
-        $user = User::where('telegram_id', $chatId)->first();
-        if (!$user) {
-            $this->bot->sendMessage($chatId, 'Пользователь не найден');
-            return;
-        }
-
-
-        try {
-            $drafts = $this->useNodeApi()->listDrafts($user->id);
-        } catch (\Exception $e) {
-            Log::error($e->getMessage());
-            return;
-        }
-
-
-        $drafts = $drafts['data'] ?? [];
-
-        if (empty($drafts)) {
-            $this->bot->sendMessage($chatId, 'У вас нет черновиков');
-            return;
-        }
-
-
-        $message = 'Ваши черновики:';
-        $keyboardButtons = [];
-        foreach ($drafts as $draft) {
-            //$date format 02.12.24
-            $date = Carbon::parse($draft['createdAt'])->format('d.m.y');
-            $goodQuantity = $draft['goodQuantity'];
-            $title = "{$date} – кол-во товаров – {$goodQuantity} шт.";
-            $keyboardButtons[] = [['text' => $title, 'callback_data' => 'wh_draft_get_' . $draft['draftId']]];
-        }
-
-        $keyboard = new InlineKeyboardMarkup($keyboardButtons);
-        $this->sendOrUpdateMessage($chatId, null, $message, $keyboard);
     }
 }
