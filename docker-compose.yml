@@ -136,7 +136,7 @@ services:
         condition: on-failure
     command: >
       sh -c "
-      npm run dev"
+      npm run start"
 
 
   auth-worker:
