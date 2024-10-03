@@ -242,8 +242,8 @@ class CheckCoefficientChanges implements ShouldQueue
     protected function notifyUser($chatId, $message)
     {
         $keyboard = new InlineKeyboardMarkup([
-            [['text' => '📦 Создать поставку', 'callback_data' => 'wh_add_supply']],
-            [['text' => '← В главное меню', 'callback_data' => 'mainmenu']]
+            [['text' => '📦 Забронировать еще', 'callback_data' => 'autobooking']],
+            [['text' => '👌 Главное меню', 'callback_data' => 'mainmenu']]
         ]);
         // $telegram = $this->useTelegram();
         // $telegram->setBotToken($this->botToken);
