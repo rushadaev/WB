@@ -126,6 +126,12 @@ const submitCode = async (
                 return true;
             }
         } else {
+            const messageSent = await sendMessageToClient(
+                telegramId,
+                'Код верный, мы авторизуем приложение, пожалуйста, ожидайте',
+                false
+            );
+
             // Success case or unexpected response
             console.log('Code submission successful:', responseBody);
             return true;

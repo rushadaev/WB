@@ -63,7 +63,7 @@ class PaymentController extends Controller
             return redirect()->away('https://t.me/wbhelpy_bot');
         }
     }
-
+    
     public function paymentSuccess(Request $request)
     {
         $requestBody = $request->all();
@@ -140,6 +140,71 @@ class PaymentController extends Controller
         }
 
     }
+
+
+    public function paymentSuccessTest(Request $request)
+    {
+        $requestBody = $request->all();
+        // Use the YooKassaService to handle the webhook data
+        $payment = $this->yooKassaService->handleWebhook($requestBody);
+
+        if ($payment) {
+            // Extract the telegram_id from the payment metadata
+            $telegramId = $payment->getMetadata()->telegram_id ?? null;
+            $subscriptionPeriod = $payment->getMetadata()->subscription_period ?? null;
+          
+
+            if ($telegramId && $subscriptionPeriod) {
+                // Find the user by telegram_id
+                $user = User::where('telegram_id', $telegramId)->first();
+
+                if ($user) {
+                    // Determine the number of days to add based on the subscription period
+                    $autoBookingsToAdd = match ($subscriptionPeriod) {
+                        '1' => 1,
+                        '5' => 5,
+                        '10' => 10,
+                        '20' => 20,
+                        '50' => 50,
+                        default => 0,
+                    };
+
+                    if ($autoBookingsToAdd > 0) {
+                        // Add the calculated days to the subscription_until field
+                        $user->autobookings = $autoBookingsToAdd; 
+                        $user->is_paid = 1;
+                        $user->save();
+
+
+                        $keyboard = new InlineKeyboardMarkup([
+                            [['text' => '🏠 На главную', 'callback_data' => 'mainmenu']]
+                        ]);
+
+                        $message = "Оплата прошла успешно 🫶\nАвтобронирования зачислены на ваш баланс 🫡";
+
+                        TelegramNotificationService::notify($telegramId, $message, config('telegram.bot_token_supplies_new'), $keyboard);
+
+                        $username = $user->name;
+                        $message = "#оплата\n@{$username} купил автобронирования <code>{$subscriptionPeriod}</code>";
+                        SendUserNotificationMessage::dispatch($message, 'HTML');
+                        Log::info('User subscription updated', ['user' => $user, 'autoBookingsToAdd' => $autoBookingsToAdd]);
+                    } else {
+                        Log::warning('Invalid subscription period', ['subscription_period' => $subscriptionPeriod]);
+                    }
+                } else {
+                    Log::warning('User not found for telegram_id', ['telegram_id' => $telegramId]);
+                }
+            } else {
+                Log::warning('Telegram ID or subscription period not found in payment metadata', ['paymentinfo' => $payment]);
+            }
+            Log::info('Payment success', ['paymentinfo' => $payment]);
+            return response()->json(['message' => 'Payment successful']);
+        } else {
+            Log::info('Webhook failed', ['WebhookInfo' => $requestBody]);
+            return response()->json(['message' => 'Payment processing error'], 400);
+        }
+    }
+
     public function getPaymentLink($telegramId, $tariff)
     {
         $amount = match ($tariff) {
@@ -152,10 +217,10 @@ class PaymentController extends Controller
         };
 
         $description = 'Покупка '.$tariff;
-        $subscriptionPeriod = '';
+        $subscriptionPeriod = $tariff;
         $orderId = $telegramId.'_'.$tariff;
 
-        $url = $this->createPaymentLink($amount, $orderId, $telegramId, $description, $subscriptionPeriod);
+        $url = $this->createPaymentLinkTest($amount, $orderId, $telegramId, $description, $subscriptionPeriod);
 
         return redirect()->away($url);
     }

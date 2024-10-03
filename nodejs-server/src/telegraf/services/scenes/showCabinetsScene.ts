@@ -75,7 +75,7 @@ const showCabinet = async (ctx: MyContext, cabinetId: string) => {
 
     let actionButton = [];
     if(cabinet.settings.is_active) {
-        actionButton = [Markup.button.callback('🔍 Проверить подключение', 'check_connection_' + cabinet.id)]
+        actionButton = [Markup.button.callback('🔍 Проверить подключение', 'check_connection_' + cabinet.settings.cabinet_id)]
     } else {
         actionButton = [Markup.button.callback('🔐 Авторизация', 'auth')]
     }
@@ -183,8 +183,9 @@ showCabinetsScene.action(/check_connection_(.+)/, async (ctx) => {
     const cabinetId = ctx.match[1];
 
     const cabinetIdDb = ctx.scene.session.selectedCabinetId;
-
+    console.log('cabinetId', cabinetId)
     try {
+       
         const response = await getDraftsForUser(cabinetId);
         await ctx.answerCbQuery(`Подключение успешно. \nОбнаружено ${response.length} черновиков`, {
             show_alert: true,

@@ -26,6 +26,7 @@
     "playwright-cluster": "^1.0.7",
     "playwright-extra": "^4.3.6",
     "playwright-extra-plugin-stealth": "^0.0.1",
+    "puppeteer": "^23.5.0",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "redis": "^4.7.0",
     "telegraf": "^4.16.3",

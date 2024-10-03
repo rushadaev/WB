@@ -11,7 +11,7 @@ const initializeCluster = async (): Promise<Cluster> => {
 
     cluster = await Cluster.launch({
         concurrency: Cluster.CONCURRENCY_CONTEXT,
-        maxConcurrency: 5,
+        maxConcurrency: 3,
         timeout: 120000,
         playwrightOptions: {
             headless: true,

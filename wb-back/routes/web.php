@@ -18,6 +18,8 @@ Route::middleware(['telegram.auth'])->group(function () {
 Route::get('/payment/return', [PaymentController::class, 'paymentReturn'])->name('payment.return');
 Route::post('/webhook/payment/success', [PaymentController::class, 'paymentSuccess'])->name('payment.success');
 
+Route::post('/webhook/payment/success/test', [PaymentController::class, 'paymentSuccessTest'])->name('payment.success.test');
+
 
 
 

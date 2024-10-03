@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             '/webhook/telegram/supplies',
             '/webhook/telegram/supplies/new',
             '/webhook/payment/success',
+            '/webhook/payment/success/test',
             '/webhook/auth-completed',
         ]);
     })

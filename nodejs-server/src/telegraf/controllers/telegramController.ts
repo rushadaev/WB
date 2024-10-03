@@ -122,7 +122,7 @@ export const createUserCabinetAndNotify = async (chatId: string, message: string
 📞 Номер телефона: ${phoneNumber};
     `;
     const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📦 Перейти в автобронирование', 'autobooking')],
+        [Markup.button.callback('📦 Перейти в автобронирование', 'continue_autobooking')],
         [Markup.button.callback('👌 Главное меню', 'mainmenu')],
     ]);
     await bot.telegram.sendMessage(chatId, messageText, keyboard);

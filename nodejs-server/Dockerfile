@@ -1,58 +1,26 @@
-# Stage 1: Build Stage
-FROM mcr.microsoft.com/playwright:v1.47.2-focal AS builder
+# Use Playwright's official Docker image
+FROM mcr.microsoft.com/playwright:focal
 
+# Set working directory
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json
+# Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies)
+# Install dependencies
 RUN npm install
 
-# Copy the rest of your application code
+# Copy application code
 COPY . .
 
-# Build the TypeScript files
-RUN npm run build
+# Install Playwright browsers (if not already installed)
+RUN npx playwright install --with-deps
 
-# Stage 2: Production Stage
-FROM node:20-slim
-
-WORKDIR /usr/src/app
-
-# Install necessary system dependencies for Playwright
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpangocairo-1.0-0 \
-    libxdamage1 \
-    libxfixes3 \
-    libpango-1.0-0 \
-    libgtk-3-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# # Copy the node_modules from the builder stage
-# COPY --from=builder /usr/src/app/node_modules ./node_modules
-
-# # Copy the built code and necessary assets from the builder stage
-# COPY --from=builder /usr/src/app/dist ./dist
-# COPY --from=builder /usr/src/app/src ./src
-
-# Expose port
+# Expose necessary ports (adjust as needed)
 EXPOSE 3000
 
-# Set environment variables
+# Set environment variables if needed
 ENV NODE_ENV=production
 ENV PORT=3000
-
-# Start the server
-CMD ["node", "dist/main.js"]
+# Start the application
+CMD ["npm", "start"]

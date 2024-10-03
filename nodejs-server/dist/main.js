@@ -1638,7 +1638,7 @@ const createUserCabinetAndNotify = async (chatId, message, payload) => {
 📞 Номер телефона: ${phoneNumber};
     `;
     const keyboard = telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.inlineKeyboard([
-        [telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.button.callback('📦 Перейти в автобронирование', 'autobooking')],
+        [telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.button.callback('📦 Перейти в автобронирование', 'continue_autobooking')],
         [telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.button.callback('👌 Главное меню', 'mainmenu')],
     ]);
     await bot.telegram.sendMessage(chatId, messageText, keyboard);
@@ -2124,7 +2124,7 @@ const sendErrorMessage = async (ctx, errorMsg) => {
 };
 const sendInstructions = async (ctx) => {
     const message = (0,telegraf_format__WEBPACK_IMPORTED_MODULE_1__.fmt) `Создайте в кабинете черновик поставки не выбирая дату и склад поставки и сохраните черновик.
-Инструкции — ${(0,telegraf_format__WEBPACK_IMPORTED_MODULE_1__.link)(`тут.`, 'https://telegra.ph/Instrukciya-po-avtobronirovaniyu-08-10')}`;
+Инструкции — ${(0,telegraf_format__WEBPACK_IMPORTED_MODULE_1__.link)(`тут.`, 'http://surl.li/awdppl')}`;
     const buttonCreate = [telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.button.callback('🤞 Создать поставку из черновика', 'start_autobooking')];
     const keyboard = telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.inlineKeyboard([buttonCreate, ...defaultButtons]);
     try {
@@ -2448,6 +2448,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _services_authService__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../../services/authService */ "./src/services/authService.ts");
 /* harmony import */ var uuid__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! uuid */ "uuid");
 /* harmony import */ var uuid__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(uuid__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var _utils_cabinetGate__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../../utils/cabinetGate */ "./src/telegraf/utils/cabinetGate.ts");
+
 
 
 
@@ -2551,6 +2553,9 @@ async (ctx) => {
 }, nameHandler, phoneHandler, codeHandler);
 cabinetWizzard.command('start', async (ctx) => {
     await ctx.scene.enter('main');
+});
+cabinetWizzard.action('continue_autobooking', async (ctx) => {
+    await (0,_utils_cabinetGate__WEBPACK_IMPORTED_MODULE_6__.cabinetGate)(ctx, 'autoBookingWizard');
 });
 // Export the scene
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (cabinetWizzard);
@@ -3225,7 +3230,7 @@ const showCabinet = async (ctx, cabinetId) => {
     }
     let actionButton = [];
     if (cabinet.settings.is_active) {
-        actionButton = [telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.button.callback('🔍 Проверить подключение', 'check_connection_' + cabinet.id)];
+        actionButton = [telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.button.callback('🔍 Проверить подключение', 'check_connection_' + cabinet.settings.cabinet_id)];
     }
     else {
         actionButton = [telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.button.callback('🔐 Авторизация', 'auth')];
@@ -3311,6 +3316,7 @@ showCabinetsScene.action(/delete_cabinet_(.+)/, async (ctx) => {
 showCabinetsScene.action(/check_connection_(.+)/, async (ctx) => {
     const cabinetId = ctx.match[1];
     const cabinetIdDb = ctx.scene.session.selectedCabinetId;
+    console.log('cabinetId', cabinetId);
     try {
         const response = await (0,_services_wildberriesService__WEBPACK_IMPORTED_MODULE_5__.getDraftsForUser)(cabinetId);
         await ctx.answerCbQuery(`Подключение успешно. \nОбнаружено ${response.length} черновиков`, {
@@ -3450,9 +3456,9 @@ async (ctx) => {
         { id: 20, name: '20 автоброней', price: 3500 },
         { id: 50, name: '50 автоброней', price: 6800 },
     ];
-    const apiUrl = 'https://botcomment.xyz';
+    const webUrl = 'https://botcomment.xyz';
     const tariffButtons = tariffs.map((tariff) => [
-        telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.button.url(`${tariff.name} – ${tariff.price}₽`, `${apiUrl}/payment_link/${ctx.from.id}/${tariff.id}`)
+        telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.button.url(`${tariff.name} – ${tariff.price}₽`, `${webUrl}/payment_link/${ctx.from.id}/${tariff.id}`)
     ]);
     await ctx.editMessageText('🫡 Выберите тариф:', telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.inlineKeyboard([...tariffButtons, ...defaultButtons]));
     await ctx.answerCbQuery('😎 Выберите тариф');
@@ -3590,7 +3596,7 @@ const initializeCluster = async () => {
     }
     cluster = await playwright_cluster__WEBPACK_IMPORTED_MODULE_0__.Cluster.launch({
         concurrency: playwright_cluster__WEBPACK_IMPORTED_MODULE_0__.Cluster.CONCURRENCY_CONTEXT,
-        maxConcurrency: 5,
+        maxConcurrency: 3,
         timeout: 120000,
         playwrightOptions: {
             headless: true,

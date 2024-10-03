@@ -519,7 +519,7 @@ export const sendErrorMessage = async (ctx: MyContext, errorMsg: string) => {
 
 export const sendInstructions = async (ctx: MyContext) => {
     const message = fmt`Создайте в кабинете черновик поставки не выбирая дату и склад поставки и сохраните черновик.
-Инструкции — ${link(`тут.`, 'https://telegra.ph/Instrukciya-po-avtobronirovaniyu-08-10')}`;
+Инструкции — ${link(`тут.`, 'http://surl.li/awdppl')}`;
 
     const buttonCreate = [Markup.button.callback('🤞 Создать поставку из черновика', 'start_autobooking')];
     const keyboard = Markup.inlineKeyboard([buttonCreate, ...defaultButtons]);

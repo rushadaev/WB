@@ -102,6 +102,7 @@ codeHandler.on('text', async (ctx) => {
     };
 
     await CacheService.pushToChannel(channel, JSON.stringify(message));
+
     //Ждем ответа от сервиса
     return;
 });
@@ -145,6 +146,10 @@ const cabinetWizzard = new Scenes.WizardScene<MyContext>(
 
 cabinetWizzard.command('start', async (ctx) => {
     await ctx.scene.enter('main');
+});
+
+cabinetWizzard.action('continue_autobooking', async (ctx: MyContext) => {
+    await cabinetGate(ctx, 'autoBookingWizard');
 });
 
 // Export the scene
