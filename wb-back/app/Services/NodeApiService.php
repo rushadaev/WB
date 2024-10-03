@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -110,29 +111,32 @@ class NodeApiService
         }
     }
 
-    public function bookTimeSlot($userId, $preorderId, $warehouseId, $deliveryDate, $monopalletCount = null)
+    public function bookTimeSlot($cabinetId, $preorderId, $warehouseId, $deliveryDate, $monopalletCount = null)
     {
         try {
-            if (!$userId || !$preorderId || !$warehouseId || !$deliveryDate) {
-                throw new Exception('User ID, Preorder ID, Warehouse ID, and Delivery Date are required.');
+            if (!$cabinetId || !$preorderId || !$warehouseId || !$deliveryDate) {
+                throw new Exception('cabinetId ID, Preorder ID, Warehouse ID, and Delivery Date are required.');
             }
 
+            $deliveryDate = Carbon::parse($deliveryDate)->toIso8601String();
+            
             $response = Http::post("{$this->baseUrl}/api/acceptance/bookTimeslot", [
-                'userId' => $userId,
-                'preorderId' => $preorderId,
-                'warehouseId' => $warehouseId,
+                'userId' => (string) $cabinetId,
+                'preorderId' => (string) $preorderId,
+                'warehouseId' => (int) $warehouseId,
                 'deliveryDate' => $deliveryDate,
-                'monopalletCount' => $monopalletCount,
+                'monopalletCount' => $monopalletCount ? (int) $monopalletCount : null,
             ]);
 
             if ($response->failed()) {
-                throw new Exception('Failed to book time slot.');
+                $errorMessage = $response->body(); // Get the full response body (error message from API)
+                throw new Exception("Failed to book time slot. Response: " . $errorMessage);
             }
 
             return $response->json();
         } catch (Exception $e) {
             Log::error($e->getMessage());
-            return response()->json(['error' => $e->getMessage()], 400);
+            throw $e;
         }
     }
 

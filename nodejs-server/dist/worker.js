@@ -178,6 +178,7 @@ const bookTimeslot = async (req, res) => {
         // Make the plan/add request with CAPTCHA headers
         const bookTimeslotResponse = await axios__WEBPACK_IMPORTED_MODULE_2___default().post(bookTimeslotUrl, bookTimeslotData, { headers: bookTimeslotHeaders });
         const bookTimeslotResult = bookTimeslotResponse.data.result;
+        console.log('result', bookTimeslotResponse);
         console.log('Book Timeslot Result:', bookTimeslotResult);
         res.status(200).json({
             message: 'Timeslot booked successfully.',
@@ -1372,9 +1373,10 @@ const sendFinalConfirmation = async (ctx) => {
     const warehouseId = ctx.session.autobookingForm.warehouseId;
     const coefficient = ctx.session.autobookingForm.coefficient;
     const boxTypeId = ctx.session.autobookingForm.boxTypeId;
+    const isBookingMessage = ctx.session.autobookingForm.isBooking ? ', как только найдем наша система автоматически забронирует поставку' : '';
     const message = (0,telegraf_format__WEBPACK_IMPORTED_MODULE_1__.fmt) `🫡 Ваша заявка готова 
 
-Мы уже ищем тайм-слот для вашей поставки, как только найдем наша система автоматически забронирует поставку. Каждые 3 часа мы будем присылать статус заявки 🫶
+Мы уже ищем тайм-слот для вашей поставки${isBookingMessage}. Каждые 24 часа мы будем присылать статус заявки 🫶
 
 ${(0,telegraf_format__WEBPACK_IMPORTED_MODULE_1__.bold)(`Данные по заявке`)}: 
 
@@ -3729,7 +3731,6 @@ __webpack_require__.r(__webpack_exports__);
 const BOX_TYPES = {
     2: '📦 Короба',
     5: '⚡  Монопаллеты',
-    6: '🗄 Суперсейфф',
 };
 const BOX_TYPES_TEXT_ONLY = {
     2: 'Короба',

@@ -18,6 +18,9 @@ Artisan::command('warehouse_bot', function () {
    CheckCoefficientChanges::dispatch(config('telegram.bot_token_supplies'));
 })->purpose('Fetch coefficients and check for changes')->everyMinute();
 
+// Artisan::command('warehouse_bot', function () {
+//       CheckCoefficientChanges::dispatch(config('telegram.bot_token_supplies_new'));
+// })->purpose('Fetch coefficients and check for changes');
 
 
 Artisan::command('warehouse_bot_check_subscription_expiration', function () {

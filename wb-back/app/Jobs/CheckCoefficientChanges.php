@@ -14,6 +14,7 @@ use TelegramBot\Api\Types\Inline\InlineKeyboardMarkup;
 use App\Models\WarehouseCoefficient;
 use App\Jobs\SendTelegramMessage;
 use Illuminate\Support\Facades\Cache;
+use App\Jobs\BookTimeSlotJob;
 use App\Models\User;
 use App\Models\Notification;
 use Carbon\Carbon;
@@ -129,14 +130,16 @@ class CheckCoefficientChanges implements ShouldQueue
     protected function checkCoefficientChanges(Notification $notification): void
     {
         $settings = $notification->settings;
-        $user = User::where('telegram_id', $settings['chatId'])->first();
+        $user = $notification->user;
 
         if (!$user) {
-            Log::error('User not found for chat ID: ' . $settings['chatId']);
+            Log::error('User not found');
             return;
         }
 
         $trackedCoefficient = $settings['coefficient'];
+        $isBooking = $settings['isBooking'] ?? false;
+        
         $coefficients = WarehouseCoefficient::where('warehouse_id', $settings['warehouseId'])
             ->where('box_type_id', $settings['boxTypeId'])
             ->where('date', '<=', Carbon::parse($settings['checkUntilDate']))
@@ -194,7 +197,30 @@ class CheckCoefficientChanges implements ShouldQueue
 
                         $message = "🔔 Найден тайм-слот\n
 📅 Дата: {$date}\n🏭 Склад: {$warehouseName}\n📦 Короб: {$boxTypeName}\n💰 Стоимость приемки: x{$coeff}";
-                        if ($settings['date'] == 'untilfound' || Carbon::now()->greaterThan($checkUntilDate)) {
+
+                        // Append booking information if applicable
+                        if ($isBooking) {
+                            \Log::info("Found booking time slot, LET's GO!");
+                            if (isset(
+                                $settings['cabinetId'],
+                                $settings['preorderId'],
+                                $settings['warehouseId'],
+                            )) {
+                                $cabinetId = $settings['cabinetId'];
+                                $preorderId = $settings['preorderId'];
+                                $warehouseId = $settings['warehouseId'];
+                                $deliveryDate = $coefficient->date;
+                                $monopalletCount = $settings['monopalletCount'] ?? null;
+                            
+                                BookTimeSlotJob::dispatch($cabinetId, $preorderId, $warehouseId, $deliveryDate, $monopalletCount, $user->telegram_id, $user->id, $this->botToken);
+                            } else {
+                                // Handle the case where required settings are missing, e.g., log an error or throw an exception
+                                Log::error('Missing required settings for booking time slot.');
+                            }
+                            
+                        }
+                        
+                        if (Carbon::now()->greaterThan($checkUntilDate)) {
                             $notification->status = 'finished';
                             $notification->save();
                         }
@@ -202,7 +228,7 @@ class CheckCoefficientChanges implements ShouldQueue
                         Cache::put($cacheKey, $coefficient->coefficient, $checkUntilDate);
                     }
 
-                    if ($settings['date'] == 'untilfound' || Carbon::now()->greaterThan($checkUntilDate)) {
+                    if (Carbon::now()->greaterThan($checkUntilDate)) {
                         $notification->status = 'finished';
                         $notification->save();
                     }

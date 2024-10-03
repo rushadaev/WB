@@ -1,7 +1,6 @@
 export const BOX_TYPES: Record<string, string> = {
     2: '📦 Короба',
     5: '⚡  Монопаллеты',
-    6: '🗄 Суперсейфф',
 };
 
 export const BOX_TYPES_TEXT_ONLY: Record<string, string> = {

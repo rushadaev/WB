@@ -252,6 +252,7 @@ export const bookTimeslot: RequestHandler = async (req: Request, res: Response):
         const bookTimeslotResponse: AxiosResponse<{ result: BookTimeslotResult }> = await axios.post(bookTimeslotUrl, bookTimeslotData, { headers: bookTimeslotHeaders });
         const bookTimeslotResult = bookTimeslotResponse.data.result;
 
+        console.log('result', bookTimeslotResponse);
         console.log('Book Timeslot Result:', bookTimeslotResult);
 
         res.status(200).json({
