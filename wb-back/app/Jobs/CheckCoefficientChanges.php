@@ -148,7 +148,7 @@ class CheckCoefficientChanges implements ShouldQueue
         // Check if the search time has expired
         $checkUntilDate = Carbon::parse($settings['checkUntilDate']);
         $status = $notification->status;
-        if (Carbon::now()->greaterThan($checkUntilDate) && $status == 'started') {
+        if (Carbon::now()->endOfDay()->greaterThan($checkUntilDate) && $status == 'started') {
             // Send notification for expired search
             $warehouseId = $settings['warehouseId'];
             $warehouses = config('warehouses.list');
