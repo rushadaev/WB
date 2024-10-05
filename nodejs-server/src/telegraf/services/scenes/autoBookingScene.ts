@@ -182,7 +182,7 @@ handleOrderConfirmation.action('confirm_order', async (ctx) => {
         await sendFinalConfirmation(ctx);
         return ctx.scene.leave();
     } catch {
-        return;
+        return ctx.scene.leave();
     }
 });
 

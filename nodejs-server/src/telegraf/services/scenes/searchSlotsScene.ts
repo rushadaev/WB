@@ -65,15 +65,15 @@ handleCustomDateInput.on('text', async (ctx) => {
     const dates = input.split(',').map(date => date.trim());
 
     // Regular expression to match YYYY.MM.DD format
-    const dateRegex = /^\d{4}\.\d{2}\.\d{2}$/;
+    const dateRegex = /^\d{2}\.\d{2}\.\d{4}$/;
 
     // Find dates that do not match the regex
     const invalidFormatDates = dates.filter(date => !dateRegex.test(date));
 
     if (invalidFormatDates.length > 0) {
         const errorMessage = fmt`❌ Некорректный формат даты: ${invalidFormatDates.join(', ')}.
-Пожалуйста, введите даты в формате ГГГГ.ММ.ДД, разделяя их запятыми. Например:
-• 2025.08.10, 2025.08.12`;
+Пожалуйста, введите даты в формате ДД.ММ.ГГГГ, разделяя их запятыми. Например:
+• 10.08.2025, 12.08.2025`;
 
         // Send the error message with the default navigation buttons
         await ctx.reply(errorMessage, {
@@ -91,7 +91,7 @@ handleCustomDateInput.on('text', async (ctx) => {
     const validDates = [];
 
     dates.forEach(dateStr => {
-        const [year, month, day] = dateStr.split('.').map(Number);
+        const [day, month, year] = dateStr.split('.').map(Number);
         const dateObj = new Date(year, month - 1, day);
         if (
             dateObj.getFullYear() === year &&
@@ -106,7 +106,7 @@ handleCustomDateInput.on('text', async (ctx) => {
 
     if (invalidDates.length > 0) {
         const errorMessage = fmt`❌ Некорректные даты: ${invalidDates.join(', ')}.
-Пожалуйста, убедитесь, что введённые даты существуют и находятся в формате ГГГГ.ММ.ДД.`;
+Пожалуйста, убедитесь, что введённые даты существуют и находятся в формате ДД.ММ.ГГГГ.`;
 
         // Send the error message with the default navigation buttons
         await ctx.reply(errorMessage, {

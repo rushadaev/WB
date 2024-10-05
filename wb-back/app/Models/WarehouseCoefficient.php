@@ -22,6 +22,7 @@ class WarehouseCoefficient extends Model
         'box_type_name',
         'coefficient',
         'date',
+        'updated_at',
     ];
 
     // If you need to customize the date format or any other attributes, you can do that here.
