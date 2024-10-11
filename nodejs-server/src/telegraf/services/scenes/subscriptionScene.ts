@@ -1,6 +1,7 @@
 import {Scenes, Markup, Composer} from 'telegraf';
 import { MyContext } from '../../types/MyContext';
 import logger from '../../../utils/logger/loggerTelegram';
+import LaravelService from "../../../services/laravelService";
 
 
 const defaultButtons = [
@@ -46,8 +47,17 @@ tariffHandler.action(/tariff_\d+/, async (ctx) => {
 });
 
 const sendStartMessage = async (ctx: MyContext) => {
+
+    let user = null;
+    try{
+        user = await LaravelService.getUserByTelegramId(ctx.from.id);
+    } catch (error) {
+        logger.error('Error getting user:', error);
+        await ctx.reply('Произошла ошибка при получении данных пользователя. Попробуйте позже');
+    }
+
     const message = `🫡 Подписка
-Доступно автообронирований: ${ctx.session.count || 0}
+Доступно автообронирований: ${user?.autobookings || 1}
 Выберете необходимое кол-во автобронирований 🙌
 
 1 автобронь – 250₽  

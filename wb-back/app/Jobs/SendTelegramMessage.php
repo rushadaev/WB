@@ -11,6 +11,7 @@ use App\Traits\UsesTelegram;
 use App\Models\User;
 use App\Models\Notification;
 use TelegramBot\Api\Types\Inline\InlineKeyboardMarkup;
+use App\Jobs\SendUserNotificationMessage;
 
 class SendTelegramMessage implements ShouldQueue
 {
@@ -67,6 +68,8 @@ class SendTelegramMessage implements ShouldQueue
         // Retrieve the user by telegram ID
         $user = User::where('telegram_id', $telegramId)->first();
 
+        $message = "@{$user->name} отписался от бота, сообщения запрещены.";
+        SendUserNotificationMessage::dispatch($message, 'HTML');
         if ($user) {
             // Update the notifications for the user to 'blocked'
             $user->notifications()->where('status', 'started')->update(['status' => 'blocked']);

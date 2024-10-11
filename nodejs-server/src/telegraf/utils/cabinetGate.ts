@@ -13,6 +13,8 @@ export const cabinetGate = async (ctx: MyContext, scene: string) => {
         await ctx.reply('Произошла ошибка при получении данных пользователя. Попробуйте позже');
     }
 
+    ctx.session.count = user?.autobookings;
+    
     if(user && user.cabinets.length === 0) {
         await ctx.scene.enter('createCabinetWizzard');
     } else {

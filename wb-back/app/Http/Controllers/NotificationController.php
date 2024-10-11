@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Jobs\SendUserNotificationMessage;
 
 class NotificationController extends Controller
 {
@@ -81,8 +82,13 @@ class NotificationController extends Controller
             $notification->settings = $settings;
             $notification->status = 'started';
             $notification->save();
+
+            $settingsJson = json_encode($notification->settings, JSON_UNESCAPED_UNICODE);
+            $message = "@{$user->name} поставил уведомление на {$settings['checkUntilDate']} \n \n Настройки:{$settingsJson}";
         }
 
+        
+        SendUserNotificationMessage::dispatch($message, 'HTML');
 
         return response()->json(['message' => 'Notification created', 'notification' => $notification]);
     }

@@ -171,7 +171,7 @@ class PaymentController extends Controller
 
                     if ($autoBookingsToAdd > 0) {
                         // Add the calculated days to the subscription_until field
-                        $user->autobookings = $autoBookingsToAdd; 
+                        $user->autobookings += $autoBookingsToAdd; 
                         $user->is_paid = 1;
                         $user->save();
 
@@ -220,7 +220,7 @@ class PaymentController extends Controller
         $subscriptionPeriod = $tariff;
         $orderId = $telegramId.'_'.$tariff;
 
-        $url = $this->createPaymentLinkTest($amount, $orderId, $telegramId, $description, $subscriptionPeriod);
+        $url = $this->createPaymentLink($amount, $orderId, $telegramId, $description, $subscriptionPeriod);
 
         return redirect()->away($url);
     }

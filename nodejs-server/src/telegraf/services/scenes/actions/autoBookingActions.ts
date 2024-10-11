@@ -390,11 +390,13 @@ export const sendFinalConfirmation = async (ctx: MyContext) => {
            let boxTypeMask = ctx.session.autobookingForm.boxTypeId;
 
            const response = await createOrderRequest(userId, draftId, warehouseId, boxTypeMask);
+
+        //    createSupplyResult: { id: [32m'json-rpc_26'[39m, jsonrpc: [32m'2.0'[39m, result: { ids: [] } }
            ctx.session.autobookingForm.preorderId = response.preorderID;
        } catch (error) {
            logger.error('Error creating order:', error
            );
-           await ctx.reply('Произошла ошибка при создании заказа. Пожалуйста, попробуйте позже.', Markup.inlineKeyboard(defaultButtonsMenuOnly));
+           await ctx.reply(`Произошла ошибка при создании заказа. Пожалуйста, попробуйте позже или измените параметры, например, другой тип упаковки или другой склад.\nОшибка: ${error}`, Markup.inlineKeyboard(defaultButtonsMenuOnly));
            throw error;
        }
    }

@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Cache;
 use App\Jobs\BookTimeSlotJob;
 use App\Models\User;
 use App\Models\Notification;
+use App\Jobs\SendUserNotificationMessage;
 use Carbon\Carbon;
 
 class CheckCoefficientChanges implements ShouldQueue
@@ -139,14 +140,26 @@ class CheckCoefficientChanges implements ShouldQueue
 
         $trackedCoefficient = $settings['coefficient'];
         $isBooking = $settings['isBooking'] ?? false;
-        
+
+        $checkUntilDate = null;
+        if($isBooking){
+            $checkUntilDate = Carbon::createFromFormat('d.m.Y', $settings['checkUntilDate'])->endOfDay();
+        } else{
+
+            if (preg_match('/^\d{4}\.\d{2}\.\d{2}$/', $settings['checkUntilDate'])) {
+                // Format is YYYY.MM.DD, use Carbon::createFromFormat
+                $checkUntilDate = Carbon::createFromFormat('Y.m.d', $settings['checkUntilDate']);
+            } else {
+                $checkUntilDate = Carbon::parse($settings['checkUntilDate'])->endOfDay();
+            }
+        }
+
         $coefficients = WarehouseCoefficient::where('warehouse_id', $settings['warehouseId'])
             ->where('box_type_id', $settings['boxTypeId'])
-            ->where('date', '<=', Carbon::parse($settings['checkUntilDate']))
+            ->where('date', '<=', $checkUntilDate)
             ->get();
 
         // Check if the search time has expired
-        $checkUntilDate = Carbon::parse($settings['checkUntilDate'])->endOfDay();
         $status = $notification->status;
         if (Carbon::now()->greaterThan($checkUntilDate) && $status == 'started') {
             // Send notification for expired search
@@ -180,11 +193,12 @@ class CheckCoefficientChanges implements ShouldQueue
             return;
         }
 
+        $dates = $settings['dates'] ?? [];
+        $isExactDate = count($dates) > 0; 
         foreach ($coefficients as $coefficient) {
             $coefficientDate = Carbon::parse($coefficient->date);
-            $checkUntilDate = Carbon::parse($settings['checkUntilDate']);
 
-            if ($coefficientDate->lessThan($checkUntilDate)) {
+            if (($coefficientDate->lessThan($checkUntilDate) && !$isExactDate) || ($isExactDate && $checkUntilDate->isSameDay($coefficientDate))) {
                 $cacheKey = 'notification_' . $notification->id . '_coefficient_' . $coefficientDate->toDateString();
                 $lastCoefficientValue = Cache::get($cacheKey);
 
@@ -196,11 +210,11 @@ class CheckCoefficientChanges implements ShouldQueue
                         $coeff = $coefficient->coefficient;
 
                         $message = "🔔 Найден тайм-слот\n
-📅 Дата: {$date}\n🏭 Склад: {$warehouseName}\n📦 Короб: {$boxTypeName}\n💰 Стоимость приемки: x{$coeff}";
+📅 Дата: {$date}\n🏭 Склад: {$warehouseName}\n📦 Короб: {$boxTypeName}\n💰 Стоимость приемки: x{$coeff}\n\n";
 
                         // Append booking information if applicable
                         if ($isBooking) {
-                            \Log::info("Found booking time slot, LET's GO!");
+                            \Log::info("Found booking time slot, LET's GO!", ['data', $notification]);
                             if (isset(
                                 $settings['cabinetId'],
                                 $settings['preorderId'],
@@ -213,6 +227,14 @@ class CheckCoefficientChanges implements ShouldQueue
                                 $monopalletCount = $settings['monopalletCount'] ?? null;
                             
                                 BookTimeSlotJob::dispatch($cabinetId, $preorderId, $warehouseId, $deliveryDate, $monopalletCount, $user->telegram_id, $user->id, $this->botToken);
+                                
+                                $notification->status = 'finished';
+                                $notification->save();
+
+                                $message = "🔔 Найден и забронирован тайм-слот\n
+📅 Дата: {$date}\n🏭 Склад: {$warehouseName}\n📦 Короб: {$boxTypeName}\n💰 Стоимость приемки: x{$coeff}\n\nid:{$notification->id}";
+                                SendUserNotificationMessage::dispatch($message, 'HTML');
+                                
                             } else {
                                 // Handle the case where required settings are missing, e.g., log an error or throw an exception
                                 Log::error('Missing required settings for booking time slot.');
@@ -220,11 +242,15 @@ class CheckCoefficientChanges implements ShouldQueue
                             
                         }
                         
+                        
                         if (Carbon::now()->greaterThan($checkUntilDate)) {
                             $notification->status = 'finished';
                             $notification->save();
                         }
+                        
+                        
                         $this->notifyUser($user->telegram_id, $message);
+
                         Cache::put($cacheKey, $coefficient->coefficient, $checkUntilDate);
                     }
 

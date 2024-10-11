@@ -1371,7 +1371,7 @@ const getDraftsForUser = async (userId) => {
     }));
 };
 const createOrderRequest = async (cabinetId, draftId, warehouseId, boxTypeMask) => {
-    var _a, _b;
+    var _a, _b, _c;
     // Validate request body
     if (!cabinetId || !draftId || !warehouseId || !boxTypeMask) {
         throw new Error('Missing required parameters.');
@@ -1434,10 +1434,17 @@ const createOrderRequest = async (cabinetId, draftId, warehouseId, boxTypeMask) 
         // Extract preorderID from the response
         const preorderID = (_b = (_a = createSupplyResult === null || createSupplyResult === void 0 ? void 0 : createSupplyResult.result) === null || _a === void 0 ? void 0 : _a.ids[0]) === null || _b === void 0 ? void 0 : _b.Id;
         console.log('createSupplyResult:', createSupplyResult);
+        if (createSupplyResult === null || createSupplyResult === void 0 ? void 0 : createSupplyResult.error) {
+            throw new Error((_c = createSupplyResult === null || createSupplyResult === void 0 ? void 0 : createSupplyResult.error) === null || _c === void 0 ? void 0 : _c.message);
+        }
+        if (!preorderID) {
+            throw new Error('Не удалось создать заказ');
+        }
         // Respond with success and the preorderID
         return {
             message: 'Order created successfully.',
             preorderID: preorderID,
+            result: createSupplyResult
         };
     }
     catch (error) {
@@ -2018,11 +2025,12 @@ const sendFinalConfirmation = async (ctx) => {
             let warehouseId = ctx.session.autobookingForm.warehouseId;
             let boxTypeMask = ctx.session.autobookingForm.boxTypeId;
             const response = await (0,_services_wildberriesService__WEBPACK_IMPORTED_MODULE_4__.createOrderRequest)(userId, draftId, warehouseId, boxTypeMask);
+            //    createSupplyResult: { id: [32m'json-rpc_26'[39m, jsonrpc: [32m'2.0'[39m, result: { ids: [] } }
             ctx.session.autobookingForm.preorderId = response.preorderID;
         }
         catch (error) {
             _utils_logger_loggerTelegram__WEBPACK_IMPORTED_MODULE_2__["default"].error('Error creating order:', error);
-            await ctx.reply('Произошла ошибка при создании заказа. Пожалуйста, попробуйте позже.', telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.inlineKeyboard(defaultButtonsMenuOnly));
+            await ctx.reply(`Произошла ошибка при создании заказа. Пожалуйста, попробуйте позже или измените параметры, например, другой тип упаковки или другой склад.\nОшибка: ${error}`, telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.inlineKeyboard(defaultButtonsMenuOnly));
             throw error;
         }
     }
@@ -2296,7 +2304,7 @@ handleOrderConfirmation.action('confirm_order', async (ctx) => {
         return ctx.scene.leave();
     }
     catch (_a) {
-        return;
+        return ctx.scene.leave();
     }
 });
 // Define the wizard scene
@@ -3011,13 +3019,13 @@ handleCustomDateInput.on('text', async (ctx) => {
     const input = ctx.message.text;
     const dates = input.split(',').map(date => date.trim());
     // Regular expression to match YYYY.MM.DD format
-    const dateRegex = /^\d{4}\.\d{2}\.\d{2}$/;
+    const dateRegex = /^\d{2}\.\d{2}\.\d{4}$/;
     // Find dates that do not match the regex
     const invalidFormatDates = dates.filter(date => !dateRegex.test(date));
     if (invalidFormatDates.length > 0) {
         const errorMessage = (0,telegraf_format__WEBPACK_IMPORTED_MODULE_3__.fmt) `❌ Некорректный формат даты: ${invalidFormatDates.join(', ')}.
-Пожалуйста, введите даты в формате ГГГГ.ММ.ДД, разделяя их запятыми. Например:
-• 2025.08.10, 2025.08.12`;
+Пожалуйста, введите даты в формате ДД.ММ.ГГГГ, разделяя их запятыми. Например:
+• 10.08.2025, 12.08.2025`;
         // Send the error message with the default navigation buttons
         await ctx.reply(errorMessage, Object.assign(Object.assign({}, telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.inlineKeyboard([...defaultButtons])), { link_preview_options: {
                 is_disabled: true
@@ -3028,7 +3036,7 @@ handleCustomDateInput.on('text', async (ctx) => {
     const invalidDates = [];
     const validDates = [];
     dates.forEach(dateStr => {
-        const [year, month, day] = dateStr.split('.').map(Number);
+        const [day, month, year] = dateStr.split('.').map(Number);
         const dateObj = new Date(year, month - 1, day);
         if (dateObj.getFullYear() === year &&
             dateObj.getMonth() === month - 1 &&
@@ -3041,7 +3049,7 @@ handleCustomDateInput.on('text', async (ctx) => {
     });
     if (invalidDates.length > 0) {
         const errorMessage = (0,telegraf_format__WEBPACK_IMPORTED_MODULE_3__.fmt) `❌ Некорректные даты: ${invalidDates.join(', ')}.
-Пожалуйста, убедитесь, что введённые даты существуют и находятся в формате ГГГГ.ММ.ДД.`;
+Пожалуйста, убедитесь, что введённые даты существуют и находятся в формате ДД.ММ.ГГГГ.`;
         // Send the error message with the default navigation buttons
         await ctx.reply(errorMessage, Object.assign(Object.assign({}, telegraf__WEBPACK_IMPORTED_MODULE_0__.Markup.inlineKeyboard([...defaultButtons])), { link_preview_options: {
                 is_disabled: true
@@ -3377,6 +3385,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var telegraf__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! telegraf */ "telegraf");
 /* harmony import */ var telegraf__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(telegraf__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _utils_logger_loggerTelegram__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../../utils/logger/loggerTelegram */ "./src/utils/logger/loggerTelegram.ts");
+/* harmony import */ var _services_laravelService__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../services/laravelService */ "./src/services/laravelService.ts");
+
 
 
 const defaultButtons = [
@@ -3417,8 +3427,16 @@ tariffHandler.action(/tariff_\d+/, async (ctx) => {
     }
 });
 const sendStartMessage = async (ctx) => {
+    let user = null;
+    try {
+        user = await _services_laravelService__WEBPACK_IMPORTED_MODULE_2__["default"].getUserByTelegramId(ctx.from.id);
+    }
+    catch (error) {
+        _utils_logger_loggerTelegram__WEBPACK_IMPORTED_MODULE_1__["default"].error('Error getting user:', error);
+        await ctx.reply('Произошла ошибка при получении данных пользователя. Попробуйте позже');
+    }
     const message = `🫡 Подписка
-Доступно автообронирований: ${ctx.session.count || 0}
+Доступно автообронирований: ${(user === null || user === void 0 ? void 0 : user.autobookings) || 1}
 Выберете необходимое кол-во автобронирований 🙌
 
 1 автобронь – 250₽  
@@ -3565,6 +3583,7 @@ const cabinetGate = async (ctx, scene) => {
         _utils_logger_loggerTelegram__WEBPACK_IMPORTED_MODULE_1__["default"].error('Error getting user:', error);
         await ctx.reply('Произошла ошибка при получении данных пользователя. Попробуйте позже');
     }
+    ctx.session.count = user === null || user === void 0 ? void 0 : user.autobookings;
     if (user && user.cabinets.length === 0) {
         await ctx.scene.enter('createCabinetWizzard');
     }

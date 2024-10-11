@@ -31,6 +31,9 @@ interface CreateSupplyResult {
     result?: {
         ids: { Id: string }[];
     };
+    error?:{
+        message?: string
+    }
 }
 
 export const getDraftsForUser = async (userId: string): Promise<RowData[]> => {
@@ -114,7 +117,9 @@ export const getDraftsForUser = async (userId: string): Promise<RowData[]> => {
 
 export const createOrderRequest = async (cabinetId:string, draftId:string, warehouseId:string, boxTypeMask:string): Promise<{
     preorderID: string;
-    message: string
+    message: string;
+    error?: any
+    result?:any
 }> => {
     // Validate request body
     if (!cabinetId || !draftId || !warehouseId || !boxTypeMask) {
@@ -191,11 +196,17 @@ export const createOrderRequest = async (cabinetId:string, draftId:string, wareh
         // Extract preorderID from the response
         const preorderID = createSupplyResult?.result?.ids[0]?.Id;
         console.log('createSupplyResult:', createSupplyResult);
-
+        if(createSupplyResult?.error){
+            throw new Error(createSupplyResult?.error?.message)
+        }
+        if(!preorderID){
+            throw new Error('Не удалось создать заказ');
+        }
         // Respond with success and the preorderID
         return {
             message: 'Order created successfully.',
             preorderID: preorderID,
+            result: createSupplyResult
         };
     } catch (error: any) {
         console.error('Error during order creation:', error.message);
